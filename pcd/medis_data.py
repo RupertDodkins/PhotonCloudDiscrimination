@@ -5,9 +5,13 @@ Todo this should be a yml
 """
 
 import numpy as np
-from medis.params import sp, ap, tp, iop, cp
+from medis.params import sp, ap, tp, iop
 
-def set_field_params():
+def update_params():
+    iop.set_atmosdata('20200102')
+    iop.set_aberdata('Palomar')
+    iop.set_testdir('PCD_20200102')
+
     ap.sample_time = 0.5
     ap.numframes = 50
     sp.uniform_flux = False
@@ -59,4 +63,3 @@ def set_field_params():
     tp.rot_rate = 0  # deg/s
     tp.pix_shift = [[0, 0]]
 
-    return
