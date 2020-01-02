@@ -2,7 +2,7 @@
 
 import argparse
 import photons
-from pointnet_mod.part_seg import train
+import pointnet.part_seg.train as pointnet
 import evaluate
 
 if __name__ == "__main__":
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     if args.make_input:
         photons.make_data()
     elif args.train:
-        train.train()
+        pointnet.train()
     elif args.evaluate:
         evaluate.evaluate()
 
