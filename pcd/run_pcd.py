@@ -1,8 +1,9 @@
 #!/mnt/data0/miniconda/envs/medis/bin/python
 
+import pcd
 import argparse
-import photons
-import pointnet.part_seg.train as pointnet
+import data
+import train
 import evaluate
 
 if __name__ == "__main__":
@@ -18,9 +19,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.make_input:
-        photons.make_data()
+        data.make_input(pcd.config)
     elif args.train:
-        pointnet.train()
+        train.train(pcd.config)
     elif args.evaluate:
         evaluate.evaluate()
 
