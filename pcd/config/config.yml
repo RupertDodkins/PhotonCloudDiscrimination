@@ -1,10 +1,11 @@
 debug: True
 #pcd_data: /Users/dodkins/PCD_data/
-pcd_data: &DIR /mnt/data0/dodkins/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 200106/]  # concat DIR with that suffix and store as WDIR
+pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
+working_dir: &WDIR !join [*DIR, 200107/]  # concat DIR with that suffix and store as WDIR
 point_num: &PN 4096
 trainfile: !join [*WDIR, trainfile.h5]
 testfile: !join [*WDIR, testfile.h5]
+dimensions: 4
 
 data:
   medis_config: "medis_params.py"
