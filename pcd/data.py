@@ -2,12 +2,14 @@ import os
 import numpy as np
 import matplotlib.pylab as plt
 from mpl_toolkits.mplot3d import Axes3D  # don't listen to pycharm this is necessary
+from matplotlib import gridspec
 from matplotlib.colors import LogNorm
 import random
 import h5py
 
 import medis.get_photon_data as gpd
 import medis.Detector.pipeline as pipe
+from medis.Utils.plot_tools import view_datacube
 
 from config.medis_params import sp, ap, tp, iop, mp
 from config.config import config
@@ -15,7 +17,12 @@ from config.config import config
 class Obsfile():
     def __init__(self):
         if not os.path.exists(iop.obs_seq):
-            gpd.run_medis()
+            fields = gpd.run_medis()
+            tess = (np.abs(fields)**2)[0]
+            print(np.sum(tess[:,0], axis=(1,2)))
+            print(np.sum(tess[:,1], axis=(1,2)))
+            view_datacube(tess[0], logAmp=True)
+            view_datacube(tess[:,0], logAmp=True)
         self.photons = pipe.read_obs()
 
 
@@ -29,6 +36,8 @@ class Data(Obsfile):
             # self.testfile = os.path.join(config['pcd_data'], config['date'], config['data']['testfile'])
         self.trainfile = config['trainfile']
         self.testfile = config['testfile']
+        self.dimensions = config['dimensions']
+        assert self.dimensions in [3,4]
 
         self.chunked_photons = []
         self.chunked_pids = []
@@ -39,13 +48,16 @@ class Data(Obsfile):
         print(self.photons[0][:10])
 
     def chunk_photons(self):
-        all_photons = np.empty((0, 3))  # photonlist with both types of photon
+        all_photons = np.empty((0, self.dimensions))  # photonlist with both types of photon
         all_pids = np.empty((0, 1))  # associated photon labels
         total_photons = len(self.photons[0]) + len(self.photons[1])
 
         for o in range(2):
             # dprint((all_photons.shape, self.photons[o][:, [0, 2, 3]].shape))
-            all_photons = np.concatenate((all_photons, self.photons[o][:, [0, 2, 3]]), axis=0)
+            if self.dimensions == 3:
+                all_photons = np.concatenate((all_photons, self.photons[o][:, [0, 2, 3]]), axis=0)
+            else:
+                all_photons = np.concatenate((all_photons, self.photons[o]), axis=0)
             all_pids = np.concatenate((all_pids, np.ones_like((self.photons[o][:, [0]])) * o), axis=0)
 
         # sort by time so the planet photons slot amongst the star photons at the appropriate point
@@ -64,7 +76,7 @@ class Data(Obsfile):
         # print(all_photons.shape, red_photons.shape, len(rand_cut))
 
         # raster the list so that every self.point_num start a new input cube
-        self.chunked_photons = red_photons.reshape(-1, self.point_num, 3)
+        self.chunked_photons = red_photons.reshape(-1, self.point_num, self.dimensions)
         self.chunked_pids = red_pids.reshape(-1, self.point_num, 1)
 
         # dprint(self.chunked_photons.shape, self.chunked_pids.shape, np.shape(self.chunked_pids[0] == 0),
@@ -123,12 +135,22 @@ class Data(Obsfile):
         plt.show(block=True)
 
     def display_raw_image(self):
-        plt.figure()
         for o in range(2):
-            plt.subplot(1, 2, o+1)
-            H, _, _ = np.histogram2d(self.photons[o][:,2], self.photons[o][:,3],
-                                     bins=[range(mp.array_size[0]), range(mp.array_size[1])])
-            plt.imshow(H, norm=LogNorm())
+            fig = plt.figure()
+            bins = [np.linspace(0, ap.sample_time * ap.numframes, 2), np.linspace(-90, 0, 4), range(mp.array_size[0]),
+                    range(mp.array_size[1])]
+            nrows, ncols = len(bins[0])-1, len(bins[1])-1
+            gs = gridspec.GridSpec(nrows, ncols)
+            for r in range(nrows):
+                for c in range(ncols):
+                    fig.add_subplot(gs[r, c])
+            axes = np.array(fig.axes).reshape(nrows, ncols)
+
+            H, _ = np.histogramdd(self.photons[o], bins=bins)
+            print(nrows, ncols, H.shape)
+            for r in range(nrows):
+                for c in range(ncols):
+                    axes[r,c].imshow(H[r,c], norm=LogNorm())
         plt.show()
 
 def make_input(config, debug=False):

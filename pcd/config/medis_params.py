@@ -9,13 +9,13 @@ from medis.params import sp, ap, tp, iop, mp
 from config.config import config
 
 # def update_params():
-iop.datadir = config['pcd_data']+config['date']
+iop.datadir = config['working_dir']
 iop.set_atmosdata('200102')
 iop.set_aberdata('Subaru')
-iop.set_testdir('200106')
+iop.set_testdir('')
 
 ap.sample_time = 0.5
-ap.numframes = 20
+ap.numframes = 10
 sp.uniform_flux = False
 sp.show_wframe = False
 sp.save_obs = True
@@ -36,8 +36,8 @@ tp.beam_ratio = 0.25
 # ap.w_bins = 16
 ap.contrast = [10**-2]
 ap.lods = [[2.5,0]]
-ap.nwsamp = 1
-ap.w_bins = 1
+ap.nwsamp = 3
+ap.w_bins = 8
 
 # sp.save_locs = np.empty((0, 1))
 tp.obscure = False
@@ -67,4 +67,5 @@ ap.band = np.array([800, 1500])
 tp.rot_rate = 0  # deg/s
 tp.pix_shift = [[0, 0]]
 
-mp.array_size = np.array([129,129])
+mp.array_size = np.array([150,150])
+mp.wavecal_coeffs = [1./6, -250]
