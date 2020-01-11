@@ -8,6 +8,7 @@ import random
 import h5py
 
 import medis.get_photon_data as gpd
+import medis.save_photon_data as spd
 import medis.Detector.pipeline as pipe
 from medis.Utils.plot_tools import view_datacube
 
@@ -18,11 +19,11 @@ class Obsfile():
     def __init__(self):
         if not os.path.exists(iop.obs_seq):
             fields = gpd.run_medis()
-            tess = (np.abs(fields)**2)[0]
-            print(np.sum(tess[:,0], axis=(1,2)))
-            print(np.sum(tess[:,1], axis=(1,2)))
-            view_datacube(tess[0], logAmp=True)
-            view_datacube(tess[:,0], logAmp=True)
+            # tess = (np.abs(fields)**2)[0]
+            # print(np.sum(tess[:,0], axis=(1,2)))
+            # print(np.sum(tess[:,1], axis=(1,2)))
+            # view_datacube(tess[0], logAmp=True)
+            # view_datacube(tess[:,0], logAmp=True)
         self.photons = pipe.read_obs()
 
 

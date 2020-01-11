@@ -1,7 +1,7 @@
 debug: True
 #pcd_data: /Users/dodkins/PCD_data/
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 200107/]  # concat DIR with that suffix and store as WDIR
+working_dir: &WDIR !join [*DIR, 200110/]  # concat DIR with that suffix and store as WDIR
 point_num: &PN 4096
 trainfile: !join [*WDIR, trainfile.h5]
 testfile: !join [*WDIR, testfile.h5]
