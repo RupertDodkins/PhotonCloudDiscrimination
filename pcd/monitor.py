@@ -19,18 +19,19 @@ def load_meta():
                 break
     return alldata
 
-def get_metrics(cur_seg, pred_seg_res):
+def get_metrics(cur_seg, pred_seg_res, include_true_neg=True):
     true_neg = np.logical_and(cur_seg == 0, pred_seg_res == 0)
     true_pos = np.logical_and(cur_seg == 1, pred_seg_res == 1)
     false_neg = np.logical_and(cur_seg == 1, pred_seg_res == 0)
     false_pos = np.logical_and(cur_seg == 0, pred_seg_res == 1)
-    # metrics = [true_pos, false_neg, false_pos]
-    metrics = [true_pos, false_neg, false_pos, true_neg]
-
-    scores = np.array([np.sum(true_pos), np.sum(false_pos)]) / np.sum(cur_seg == 1)
-    print(scores)
-    scores = np.array([np.sum(true_neg), np.sum(false_neg)]) / np.sum(cur_seg == 0)
-    print(scores)
+    if include_true_neg:
+        metrics = [true_pos, false_neg, false_pos, true_neg]
+        scores = np.array([np.sum(true_pos), np.sum(false_pos)]) / np.sum(cur_seg == 1)
+        print(scores)
+        scores = np.array([np.sum(true_neg), np.sum(false_neg)]) / np.sum(cur_seg == 0)
+        print(scores)
+    else:
+        metrics = [true_pos, false_neg, false_pos]
 
     return metrics
 
@@ -50,7 +51,7 @@ def cloud(epoch=-1):
     metrics = get_metrics(cur_seg, pred_seg_res)
     three_d_scatter(cur_data, metrics)
 
-def show_performance(epoch=-1):
+def show_performance(epoch=-1, include_true_neg=False):
     alldata = load_meta()
 
     # print(alldata.shape, alldata.T.shape)
@@ -81,7 +82,8 @@ def show_performance(epoch=-1):
     guess_ax.imshow(pred_seg_res, aspect='auto')
     diff_ax.imshow(pred_seg_res - cur_seg, aspect='auto')
 
-    metrics = get_metrics(cur_seg, pred_seg_res)
+
+    metrics = get_metrics(cur_seg, pred_seg_res, include_true_neg)
     colors = ['green', 'orange', 'purple', 'blue', ]
     for metric, c in zip(metrics, colors[:len(metrics)]):
         red_data = cur_data[metric]
