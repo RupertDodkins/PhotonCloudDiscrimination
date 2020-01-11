@@ -4,58 +4,101 @@ import pickle
 import matplotlib.pylab as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import LogNorm
+from matplotlib import gridspec
 import numpy as np
-from medis.params import iop, ap
+from medis.params import mp
 from config.config import config
 
-def show_performance(epoch=1):
+def load_meta():
+    alldata = []
     with open(config['train']['ml_meta'], 'rb') as handle:
-        alldata = [pickle.load(handle) for i in range(epoch+1)]
+        while True:
+            try:
+                alldata.append(pickle.load(handle))
+            except EOFError:
+                break
+    return alldata
+
+def get_metrics(cur_seg, pred_seg_res):
+    true_neg = np.logical_and(cur_seg == 0, pred_seg_res == 0)
+    true_pos = np.logical_and(cur_seg == 1, pred_seg_res == 1)
+    false_neg = np.logical_and(cur_seg == 1, pred_seg_res == 0)
+    false_pos = np.logical_and(cur_seg == 0, pred_seg_res == 1)
+    # metrics = [true_pos, false_neg, false_pos]
+    metrics = [true_pos, false_neg, false_pos, true_neg]
+
+    scores = np.array([np.sum(true_pos), np.sum(false_pos)]) / np.sum(cur_seg == 1)
+    print(scores)
+    scores = np.array([np.sum(true_neg), np.sum(false_neg)]) / np.sum(cur_seg == 0)
+    print(scores)
+
+    return metrics
+
+def three_d_scatter(cur_data, metrics):
+    fig = plt.figure(figsize=(12, 9))
+    colors = ['green', 'orange', 'purple', 'blue', ]
+    ax = fig.add_subplot(111, projection='3d')
+    for metric, c in zip(metrics, colors[:len(metrics)]):
+        red_data = cur_data[metric]
+        ax.scatter(red_data[:, 3], red_data[:, 1], red_data[:, 2], c=c, marker='o', s=2)  # , marker=pids[0])
+    ax.view_init(elev=10., azim=-10)
+    plt.show()
+
+def cloud(epoch=-1):
+    alldata = load_meta()
+    cur_seg, pred_seg_res, cur_data = alldata[epoch]
+    metrics = get_metrics(cur_seg, pred_seg_res)
+    three_d_scatter(cur_data, metrics)
+
+def show_performance(epoch=-1):
+    alldata = load_meta()
 
     # print(alldata.shape, alldata.T.shape)
+    # for ground, pred in zip(cur_seg[num_epoch-1:], pred_seg_res[num_epoch-1:]):
     cur_seg, pred_seg_res, cur_data = alldata[epoch]
     print(cur_data.shape)
 
-    # for ground, pred in zip(cur_seg[num_epoch-1:], pred_seg_res[num_epoch-1:]):
-    for cur_seg, pred_seg_res, cur_data in alldata[-1:]:
-        plt.figure()
-        plt.imshow(cur_seg, aspect='auto')
-        plt.figure()
-        plt.imshow(pred_seg_res, aspect='auto')
-        plt.figure()
-        plt.imshow(pred_seg_res - cur_seg, aspect='auto')
+    fig3 = plt.figure(figsize=(9,9), constrained_layout=True)
+    gs = gridspec.GridSpec(3, 3)
+    # fig.add_subplot(gs[r, c])
+    # gs = fig3.add_gridspec(3, 3)
 
-        colors = ['green', 'orange', 'purple', 'blue', ]
+    true_ax = fig3.add_subplot(gs[0, 0])
+    guess_ax = fig3.add_subplot(gs[0, 1])
+    diff_ax = fig3.add_subplot(gs[0, 2])
 
-        true_neg = np.logical_and(cur_seg == 0, pred_seg_res == 0)
-        true_pos = np.logical_and(cur_seg == 1, pred_seg_res == 1)
-        false_neg = np.logical_and(cur_seg == 1, pred_seg_res == 0)
-        false_pos = np.logical_and(cur_seg == 0, pred_seg_res == 1)
+    xy_ax = fig3.add_subplot(gs[1, 0])
+    xp_ax = fig3.add_subplot(gs[1, 1])
+    xt_ax = fig3.add_subplot(gs[1, 2])
+    tp_ax = fig3.add_subplot(gs[2, 0])
 
-        scores = np.array([np.sum(true_pos), np.sum(false_pos)]) / np.sum(cur_seg == 1)
-        print(scores)
-        scores = np.array([np.sum(true_neg), np.sum(false_neg)]) / np.sum(cur_seg == 0)
-        print(scores)
-        # metrics = [true_pos, false_neg, false_pos, true_neg]
-        metrics = [true_pos, false_neg, false_pos]
-        fig = plt.figure(figsize=(12, 9))
-        ax = fig.add_subplot(111, projection='3d')
-        for metric, c in zip(metrics, colors[:len(metrics)]):
-            red_data = cur_data[metric]
-            ax.scatter(red_data[:, 0], red_data[:, 1], red_data[:, 2], c=c, marker='o', s=2)  # , marker=pids[0])
-        ax.view_init(elev=10., azim=-10)
+    xyim_ax = fig3.add_subplot(gs[2, 1])
+    xypos_ax = fig3.add_subplot(gs[2, 2])
 
-        fig.tight_layout()
+    true_ax.set_title('True')
 
-        plt.figure()
-        H, _, _ = np.histogram2d(cur_data[:, :, 1].flatten(), cur_data[:, :, 2].flatten(),
-                                 bins=[range(ap.grid_size), range(ap.grid_size)])
-        plt.imshow(H, norm=LogNorm())
+    true_ax.imshow(cur_seg, aspect='auto')
+    guess_ax.imshow(pred_seg_res, aspect='auto')
+    diff_ax.imshow(pred_seg_res - cur_seg, aspect='auto')
 
-        plt.figure()
-        positives = cur_data[pred_seg_res == 1]
-        H, _, _ = np.histogram2d(positives[:, 1], positives[:, 2], bins=[range(ap.grid_size), range(ap.grid_size)])
-        plt.imshow(H, norm=LogNorm())
+    metrics = get_metrics(cur_seg, pred_seg_res)
+    colors = ['green', 'orange', 'purple', 'blue', ]
+    for metric, c in zip(metrics, colors[:len(metrics)]):
+        red_data = cur_data[metric]
+        xy_ax.scatter(red_data[:, 2], red_data[:, 3], c=c, marker='.', s=1)  # , marker=pids[0])
+        xp_ax.scatter(red_data[:, 2], red_data[:, 0], c=c, marker='.', s=1)  # , marker=pids[0])
+        xt_ax.scatter(red_data[:, 2], red_data[:, 1], c=c, marker='.', s=1)  # , marker=pids[0])
+        tp_ax.scatter(red_data[:, 0], red_data[:, 1], c=c, marker='.', s=1)  # , marker=pids[0])
+
+
+    bins = [range(mp.array_size[0]), range(mp.array_size[1])]
+    H, _, _ = np.histogram2d(cur_data[:, :, 3].flatten(), cur_data[:, :, 2].flatten(),
+                             bins=bins)
+    xyim_ax.imshow(H, norm=LogNorm())
+
+    positives = cur_data[pred_seg_res == 1]
+    H, _, _ = np.histogram2d(positives[:, 1], positives[:, 2], bins=bins)
+    xypos_ax.imshow(H, norm=LogNorm())
 
     plt.show(block=True)
 
@@ -63,4 +106,4 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
-    show_performance(43)
+    show_performance(38)
