@@ -6,7 +6,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import LogNorm
 from matplotlib import gridspec
 import numpy as np
-from medis.params import mp
+from config.medis_params import mp
 from config.config import config
 
 def load_meta():
@@ -59,10 +59,9 @@ def show_performance(epoch=-1, include_true_neg=False):
     cur_seg, pred_seg_res, cur_data = alldata[epoch]
     print(cur_data.shape)
 
+    # set axes
     fig3 = plt.figure(figsize=(9,9), constrained_layout=True)
     gs = gridspec.GridSpec(3, 3)
-    # fig.add_subplot(gs[r, c])
-    # gs = fig3.add_gridspec(3, 3)
 
     true_ax = fig3.add_subplot(gs[0, 0])
     guess_ax = fig3.add_subplot(gs[0, 1])
@@ -77,11 +76,28 @@ def show_performance(epoch=-1, include_true_neg=False):
     xypos_ax = fig3.add_subplot(gs[2, 2])
 
     true_ax.set_title('True')
+    guess_ax.set_title('Guess')
+    diff_ax.set_title('Diff')
+    true_ax.set_ylabel('Label')
 
+    for ax in [true_ax, guess_ax, diff_ax]:
+        ax.set_xlabel('Batch Input')
+
+    for ax in [xy_ax, xp_ax, xt_ax, tp_ax]:
+        ax.set_title('Guesses')
+
+    xy_ax.set_label(('x','y'))
+    xp_ax.set_label(('x','p'))
+    xt_ax.set_label(('x','t'))
+    tp_ax.set_label(('t','p'))
+
+    xyim_ax.set_title('True all')
+    xypos_ax.set_title('Planet Guess')
+
+    # plot data
     true_ax.imshow(cur_seg, aspect='auto')
     guess_ax.imshow(pred_seg_res, aspect='auto')
     diff_ax.imshow(pred_seg_res - cur_seg, aspect='auto')
-
 
     metrics = get_metrics(cur_seg, pred_seg_res, include_true_neg)
     colors = ['green', 'orange', 'purple', 'blue', ]
@@ -99,7 +115,8 @@ def show_performance(epoch=-1, include_true_neg=False):
     xyim_ax.imshow(H, norm=LogNorm())
 
     positives = cur_data[pred_seg_res == 1]
-    H, _, _ = np.histogram2d(positives[:, 1], positives[:, 2], bins=bins)
+    print(pred_seg_res.shape, pred_seg_res[:10], pred_seg_res[:10] == 1, cur_data[:10], positives[:10])
+    H, _, _ = np.histogram2d(positives[:, 2], positives[:, 3], bins=bins)
     xypos_ax.imshow(H, norm=LogNorm())
 
     plt.show(block=True)
