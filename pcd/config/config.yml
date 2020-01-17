@@ -5,10 +5,15 @@ working_dir: &WDIR !join [*DIR, 200110/]  # concat DIR with that suffix and stor
 point_num: &PN 4096
 trainfile: !join [*WDIR, trainfile.h5]
 testfile: !join [*WDIR, testfile.h5]
+test_frac: 0.2
 dimensions: 4
+max_planets: 1
 
 data:
   medis_config: "medis_params.py"
+  angles: [0] #[0,90,180,270]
+  lods: [2.5] #[2,4,6]
+  contrasts: [-2]  # [-2, -6]
 
 train:
   gpu: 1

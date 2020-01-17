@@ -10,33 +10,67 @@ import h5py
 import medis.get_photon_data as gpd
 import medis.save_photon_data as spd
 import medis.Detector.pipeline as pipe
-from medis.Utils.plot_tools import view_datacube
+from medis.Utils.misc import dprint
 
 from config.medis_params import sp, ap, tp, iop, mp
 from config.config import config
 
+MEDIS_CONTRAST = ap.contrast[0]*1  # stor here as it gets changed in Obsfile
+MEDIS_LODS = ap.lods[0]*1
+
 class Obsfile():
-    def __init__(self):
-        if not os.path.exists(iop.obs_seq):
-            fields = gpd.run_medis()
-            # tess = (np.abs(fields)**2)[0]
-            # print(np.sum(tess[:,0], axis=(1,2)))
-            # print(np.sum(tess[:,1], axis=(1,2)))
-            # view_datacube(tess[0], logAmp=True)
-            # view_datacube(tess[:,0], logAmp=True)
+    """ Gets the photon lists from MEDIS """
+    def __init__(self, contrast, lods):
+        ap.contrast = contrast
+        ap.lods = lods
+        self.numobj = len(ap.contrast) + 1
+
+        # if not os.path.exists(iop.obs_seq):
+        gpd.run_medis()
+
         self.photons = pipe.read_obs()
+        if config['debug']:
+            self.display_raw_image()
+            self.display_raw_cloud()
 
+    def display_raw_cloud(self, downsamp=10000):
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        colors = ['blue', 'orange']
+        for i, c in enumerate(colors[:self.numobj]):
+            ax.scatter(self.photons[i][:,1][::downsamp], self.photons[i][:,2][::downsamp],
+                       self.photons[i][:,3][::downsamp], c=c, marker='.')  # , marker=pids[0])
+        plt.show(block=True)
 
-class Data(Obsfile):
-    def __init__(self, config=None):
-        super(Data, self).__init__()
+    def display_raw_image(self):
+        for o in range(self.numobj):
+            fig = plt.figure()
+            bins = [np.linspace(0, ap.sample_time * ap.numframes, 2), np.linspace(-90, 0, 4), range(mp.array_size[0]),
+                    range(mp.array_size[1])]
+            nrows, ncols = len(bins[0])-1, len(bins[1])-1
+            gs = gridspec.GridSpec(nrows, ncols)
+            for r in range(nrows):
+                for c in range(ncols):
+                    fig.add_subplot(gs[r, c])
+            axes = np.array(fig.axes).reshape(nrows, ncols)
+
+            H, _ = np.histogramdd(self.photons[o], bins=bins)
+            print(nrows, ncols, H.shape)
+            for r in range(nrows):
+                for c in range(ncols):
+                    axes[r,c].imshow(H[r,c], norm=LogNorm())
+        plt.show()
+
+class Class():
+    def __init__(self, photons, label, trainfile, testfile):
+        self.photons = photons
+        self.label = label
+
+        self.trainfile = trainfile
+        self.testfile = testfile
+
         self.point_num = config['point_num']
-        self.test_frac = 0.2
-        # if config is not None:
-            # self.trainfile = os.path.join(config['pcd_data'], config['date'], config['data']['trainfile'])
-            # self.testfile = os.path.join(config['pcd_data'], config['date'], config['data']['testfile'])
-        self.trainfile = config['trainfile']
-        self.testfile = config['testfile']
+        self.test_frac = config['test_frac']
         self.dimensions = config['dimensions']
         assert self.dimensions in [3,4]
 
@@ -46,14 +80,16 @@ class Data(Obsfile):
         self.data = []
         self.pids = []
 
-        print(self.photons[0][:10])
+        self.contrasts = []
+        self.lods = []
+
 
     def chunk_photons(self):
         all_photons = np.empty((0, self.dimensions))  # photonlist with both types of photon
         all_pids = np.empty((0, 1))  # associated photon labels
-        total_photons = len(self.photons[0]) + len(self.photons[1])
+        total_photons = sum([len(self.photons[i]) for i in range(self.label+1)])
 
-        for o in range(2):
+        for o in range(self.label+1):
             # dprint((all_photons.shape, self.photons[o][:, [0, 2, 3]].shape))
             if self.dimensions == 3:
                 all_photons = np.concatenate((all_photons, self.photons[o][:, [0, 2, 3]]), axis=0)
@@ -85,14 +121,13 @@ class Data(Obsfile):
         #        np.shape((self.chunked_pids[0] == 0)[:, 0]))  # , np.shape(self.chunked_photons[0, [self.chunked_pids[0]==0], 0]))
         # dprint(np.shape(self.chunked_photons[0, (self.chunked_pids[0] == 0)[:, 0], 0]))
 
-    def make_train(self):
+    def save_class(self):
         num_input = len(self.chunked_photons)  # 16
-
 
         reorder = np.apply_along_axis(np.random.permutation, 1,
                                       np.ones((num_input, self.point_num)) * np.arange(self.point_num)).astype(np.int)
 
-        self.labels = np.zeros((num_input), dtype=int)
+        self.labels = np.ones((num_input), dtype=int) * self.label
         self.data = np.array([self.chunked_photons[o, order] for o, order in enumerate(reorder)])
         self.pids = np.array([self.chunked_pids[o, order] for o, order in enumerate(reorder)])[:, :, 0]
 
@@ -123,50 +158,46 @@ class Data(Obsfile):
                            marker='.')  # , marker=pids[0])
         plt.show(block=True)
 
-    def display_raw_cloud(self, downsamp=1000):
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        colors = ['blue', 'orange']
-        # bounds = [0,len(photons[0]),data.shape[1]]
-        # ax.scatter(data[:, bounds[i]:bounds[i + 1], 0], data[0, bounds[i]:bounds[i + 1], 1],
-        #            data[0, bounds[i]:bounds[i + 1], 2], c=c)
-        for i, c in enumerate(colors):
-            ax.scatter(self.photons[i][:,1][::downsamp], self.photons[i][:,2][::downsamp],
-                       self.photons[i][:,3][::downsamp], c=c, marker='.')  # , marker=pids[0])
-        plt.show(block=True)
+class Data():
+    """ Creates the input data for the PCD network """
+    def __init__(self, config=None):
+        self.numobj = config['max_planets']+1
+        self.contrasts, self.lods = self.get_astro()
+        self.trainfiles, self.testfiles = self.get_filenames()
 
-    def display_raw_image(self):
-        for o in range(2):
-            fig = plt.figure()
-            bins = [np.linspace(0, ap.sample_time * ap.numframes, 2), np.linspace(-90, 0, 4), range(mp.array_size[0]),
-                    range(mp.array_size[1])]
-            nrows, ncols = len(bins[0])-1, len(bins[1])-1
-            gs = gridspec.GridSpec(nrows, ncols)
-            for r in range(nrows):
-                for c in range(ncols):
-                    fig.add_subplot(gs[r, c])
-            axes = np.array(fig.axes).reshape(nrows, ncols)
+    def get_astro(self):
+        # numplanets = config['max_planets']
+        contrasts = [10**config['data']['contrasts'][0]]
+        disp = config['data']['lods'][0]
+        angle = config['data']['angles'][0]
+        lods = [disp*np.array([np.sin(angle),np.cos(angle)])]
 
-            H, _ = np.histogramdd(self.photons[o], bins=bins)
-            print(nrows, ncols, H.shape)
-            for r in range(nrows):
-                for c in range(ncols):
-                    axes[r,c].imshow(H[r,c], norm=LogNorm())
-        plt.show()
+        return contrasts, lods
 
-def make_input(config, debug=False):
-    debug = config['debug']
+    def get_filenames(self):
+        trainfile, extension = config['trainfile'].split('.')
+        trainfiles = [trainfile+str(l)+'.'+extension for l in range(self.numobj)]
+        testfile, extension = config['testfile'].split('.')
+        testfiles = [testfile+str(l)+'.'+extension for l in range(self.numobj)]
 
+        return trainfiles, testfiles
+
+def make_input(config):
     d = Data(config)
-    if debug:
-        d.display_raw_image()
-        d.display_raw_cloud()
 
-    d.chunk_photons()
-    if debug:
-        d.display_chunk_cloud()
+    for label, (trainfile, testfile) in enumerate(zip(d.trainfiles, d.testfiles)):
+        contrast = d.contrasts[:label]
+        lod = d.lods[:label]
 
-    d.make_train()
+        iop.set_testdir(str(label))
+        photons = Obsfile(contrast, lod).photons
+        print(photons[0][:10])
+
+        c = Class(photons, label, trainfile, testfile)
+        c.chunk_photons()
+        if config['debug']:
+            c.display_chunk_cloud()
+        c.save_class()
 
 if __name__ == "__main__":
     make_input(config)
