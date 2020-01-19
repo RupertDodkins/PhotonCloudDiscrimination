@@ -20,7 +20,8 @@ MEDIS_LODS = ap.lods[0]*1
 
 class Obsfile():
     """ Gets the photon lists from MEDIS """
-    def __init__(self, contrast, lods):
+    def __init__(self, label, contrast, lods):
+        iop.set_testdir(str(label))
         ap.contrast = contrast
         ap.lods = lods
         self.numobj = len(ap.contrast) + 1
@@ -30,8 +31,13 @@ class Obsfile():
 
         self.photons = pipe.read_obs()
         if config['debug']:
+            print(self.photons[0][:10])
             self.display_raw_image()
             self.display_raw_cloud()
+
+    def log_params(self):
+        """ Log the MEDIS parameters for reference """
+        raise NotImplemented
 
     def display_raw_cloud(self, downsamp=10000):
         fig = plt.figure()
@@ -62,6 +68,7 @@ class Obsfile():
         plt.show()
 
 class Class():
+    """ Creates the input data in the NN input format """
     def __init__(self, photons, label, trainfile, testfile):
         self.photons = photons
         self.label = label
@@ -69,7 +76,7 @@ class Class():
         self.trainfile = trainfile
         self.testfile = testfile
 
-        self.point_num = config['point_num']
+        self.num_point = config['num_point']
         self.test_frac = config['test_frac']
         self.dimensions = config['dimensions']
         assert self.dimensions in [3,4]
@@ -79,10 +86,6 @@ class Class():
         self.labels = []
         self.data = []
         self.pids = []
-
-        self.contrasts = []
-        self.lods = []
-
 
     def chunk_photons(self):
         all_photons = np.empty((0, self.dimensions))  # photonlist with both types of photon
@@ -104,7 +107,7 @@ class Class():
         all_pids = all_pids[time_sort]
 
         # remove residual photons that won't fit into a input cube for the network
-        cut = int(total_photons % self.point_num)
+        cut = int(total_photons % self.num_point)
         # dprint(cut)
         rand_cut = random.sample(range(total_photons), cut)
         red_photons = np.delete(all_photons, rand_cut, axis=0)
@@ -112,20 +115,23 @@ class Class():
 
         # print(all_photons.shape, red_photons.shape, len(rand_cut))
 
-        # raster the list so that every self.point_num start a new input cube
-        self.chunked_photons = red_photons.reshape(-1, self.point_num, self.dimensions)
-        self.chunked_pids = red_pids.reshape(-1, self.point_num, 1)
+        # raster the list so that every self.num_point start a new input cube
+        self.chunked_photons = red_photons.reshape(-1, self.num_point, self.dimensions)
+        self.chunked_pids = red_pids.reshape(-1, self.num_point, 1)
 
         # dprint(self.chunked_photons.shape, self.chunked_pids.shape, np.shape(self.chunked_pids[0] == 0),
         #        np.shape(np.transpose([self.chunked_pids[0] == 0])), np.shape(np.transpose(self.chunked_pids[0] == 0)),
         #        np.shape((self.chunked_pids[0] == 0)[:, 0]))  # , np.shape(self.chunked_photons[0, [self.chunked_pids[0]==0], 0]))
         # dprint(np.shape(self.chunked_photons[0, (self.chunked_pids[0] == 0)[:, 0], 0]))
 
+        if config['debug']:
+            self.display_chunk_cloud()
+
     def save_class(self):
         num_input = len(self.chunked_photons)  # 16
 
         reorder = np.apply_along_axis(np.random.permutation, 1,
-                                      np.ones((num_input, self.point_num)) * np.arange(self.point_num)).astype(np.int)
+                                      np.ones((num_input, self.num_point)) * np.arange(self.num_point)).astype(np.int)
 
         self.labels = np.ones((num_input), dtype=int) * self.label
         self.data = np.array([self.chunked_photons[o, order] for o, order in enumerate(reorder)])
@@ -133,13 +139,19 @@ class Class():
 
         with h5py.File(self.trainfile, 'w') as hf:
             hf.create_dataset('data', data=self.data[:-int(self.test_frac * num_input)])
-            hf.create_dataset('label', data=self.labels[:-int(self.test_frac * num_input)])
-            hf.create_dataset('pid', data=self.pids[:-int(self.test_frac * num_input)])
+            if config['task'] == 'part_seg':
+                hf.create_dataset('label', data=self.labels[:-int(self.test_frac * num_input)])
+                hf.create_dataset('pid', data=self.pids[:-int(self.test_frac * num_input)])
+            else:
+                hf.create_dataset('label', data=self.pids[:-int(self.test_frac * num_input)])
 
         with h5py.File(self.testfile, 'w') as hf:
             hf.create_dataset('data', data=self.data[-int(self.test_frac * num_input):])
-            hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
-            hf.create_dataset('pid', data=self.pids[-int(self.test_frac * num_input):])
+            if config['task'] == 'part_seg':
+                hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
+                hf.create_dataset('pid', data=self.pids[-int(self.test_frac * num_input):])
+            else:
+                hf.create_dataset('label', data=self.pids[-int(self.test_frac * num_input):])
 
     def display_chunk_cloud(self, downsamp=10):
         fig = plt.figure()
@@ -159,13 +171,13 @@ class Class():
         plt.show(block=True)
 
 class Data():
-    """ Creates the input data for the PCD network """
+    """ Infers the sequence of parameters to pass to each Obsfile """
     def __init__(self, config=None):
-        self.numobj = config['max_planets']+1
-        self.contrasts, self.lods = self.get_astro()
-        self.trainfiles, self.testfiles = self.get_filenames()
+        self.numobj = config['planets']+1
+        self.contrasts, self.lods = self.observation_params()
+        # self.trainfiles, self.testfiles = self.get_filenames()
 
-    def get_astro(self):
+    def observation_params(self):
         # numplanets = config['max_planets']
         contrasts = [10**config['data']['contrasts'][0]]
         disp = config['data']['lods'][0]
@@ -174,29 +186,19 @@ class Data():
 
         return contrasts, lods
 
-    def get_filenames(self):
-        trainfile, extension = config['trainfile'].split('.')
-        trainfiles = [trainfile+str(l)+'.'+extension for l in range(self.numobj)]
-        testfile, extension = config['testfile'].split('.')
-        testfiles = [testfile+str(l)+'.'+extension for l in range(self.numobj)]
-
-        return trainfiles, testfiles
-
 def make_input(config):
     d = Data(config)
 
-    for label, (trainfile, testfile) in enumerate(zip(d.trainfiles, d.testfiles)):
+    trainfile = config['trainfiles'][0]
+    testfile = config['testfiles'][0]
+    for label in range(1, d.numobj):
         contrast = d.contrasts[:label]
         lod = d.lods[:label]
 
-        iop.set_testdir(str(label))
-        photons = Obsfile(contrast, lod).photons
-        print(photons[0][:10])
+        photons = Obsfile(label, contrast, lod).photons
 
         c = Class(photons, label, trainfile, testfile)
         c.chunk_photons()
-        if config['debug']:
-            c.display_chunk_cloud()
         c.save_class()
 
 if __name__ == "__main__":

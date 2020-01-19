@@ -1,13 +1,14 @@
 debug: True
 #pcd_data: /Users/dodkins/PCD_data/
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 200110/]  # concat DIR with that suffix and store as WDIR
-point_num: &PN 4096
+working_dir: &WDIR !join [*DIR, 200117/]  # concat DIR with that suffix and store as WDIR
+num_point: &PN 4096
 trainfile: !join [*WDIR, trainfile.h5]
 testfile: !join [*WDIR, testfile.h5]
 test_frac: 0.2
 dimensions: 4
-max_planets: 1
+planets: 1
+task: sem_seg
 
 data:
   medis_config: "medis_params.py"
@@ -17,11 +18,17 @@ data:
 
 train:
   gpu: 1
-  point_num: *PN
-  batch: 4
-  epoch: 200
+  num_point: *PN
+  batch_size: 100
+  max_epoch: 200
   wd: 0.
-  output_dir: *WDIR
+  log_dir: *WDIR
   data_dir: *WDIR
   ml_meta: !join [*WDIR, ml_meta.pkl]
+  learning_rate: 0.001
+  momentum: 0.9
+  optimizer: adam
+  decay_step: 300000
+  decay_rate: 0.5
+
 

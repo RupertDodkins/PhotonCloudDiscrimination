@@ -2,7 +2,7 @@ import os
 import yaml
 import re
 
-# because pycharm doesn't read the environment variables  so this sets the automatically
+# because pycharm doesn't read the environment variables so this sets the automatically
 # for quick switching between machines
 from os.path import expanduser
 home = expanduser("~")
@@ -40,6 +40,11 @@ with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.yml"
         config = yaml.load(stream)
     except yaml.YAMLError as exc:
         config = exc
+
+trainfile, extension = config['trainfile'].split('.')
+config['trainfiles'] = [trainfile+str(l)+'.'+extension for l in range(config['planets'])]
+testfile, extension = config['testfile'].split('.')
+config['testfiles'] = [testfile+str(l)+'.'+extension for l in range(config['planets'])]
 
 if __name__ == '__main__':
     print(config)

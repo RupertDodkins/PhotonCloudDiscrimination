@@ -27,7 +27,7 @@ sp.cont_save = False
 # sp.save_locs = ['deformable_mirror', 'detector']
 
 ap.companion = True
-ap.star_photons_per_s = int(1e4)
+ap.star_photons_per_s = int(1e3)
 ap.grid_size = 512
 tp.beam_ratio = 0.25
 # ap.contrast = 10**np.array([-3.5, -4, -4.5, -5] * 2)
