@@ -14,6 +14,7 @@ from medis.Utils.misc import dprint
 
 from config.medis_params import sp, ap, tp, iop, mp
 from config.config import config
+import utils
 
 MEDIS_CONTRAST = ap.contrast[0]*1  # stor here as it gets changed in Obsfile
 MEDIS_LODS = ap.lods[0]*1
@@ -30,15 +31,41 @@ class Obsfile():
             gpd.run_medis()
 
         self.photons = pipe.read_obs()
-        # if config['debug']:
-        #     print(self.photons[0][:10])
+        if config['debug']:
         #     # self.display_raw_image()
         #     # self.display_raw_cloud()
         #     self.display_2d_hists()
+            self.plot_stats()
 
     def log_params(self):
         """ Log the MEDIS parameters for reference """
         raise NotImplemented
+
+    def plot_stats(self):
+        rad = 4
+        starcenter = mp.array_size//2
+        planetcenter1 = [50, 75]
+        speckcenter = [50, 75]
+        centers = [starcenter, speckcenter, planetcenter1]
+        objs = ['star', 'speckle', 'planet']
+        fields = [0,0,1]
+
+        fig, axes = utils.init_grid(rows=3, cols=3)
+        for o, (center, f) in enumerate(zip(centers, fields)):
+            objbounds = [center[0]-rad, center[0]+rad, center[1]-rad, center[1]+rad]
+            print(objbounds)
+            locs = np.all((self.photons[f][:, 2] >= objbounds[0],
+                           self.photons[f][:, 2] <= objbounds[1],
+                           self.photons[f][:, 3] >= objbounds[2],
+                           self.photons[f][:, 3] <= objbounds[3]), axis=0)
+
+            inten = np.histogram(self.photons[f][locs,0], bins=100)[0]
+            axes[0,o].plot(self.photons[f][locs,0])
+            axes[0,o].set_title(objs[o])
+            axes[1,o].plot(inten)
+            axes[2,o].hist(inten, bins=25)
+
+        plt.show(block=True)
 
     def display_2d_hists(self):
         rows = 2
@@ -51,7 +78,7 @@ class Obsfile():
                 axes.append(fig.add_subplot(gs[i, j]))
         axes = np.array(axes).reshape(rows, cols)
         plt.tight_layout()
-        
+
         bins = [np.linspace(0, ap.sample_time * ap.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
                 range(mp.array_size[1])]
 
@@ -198,7 +225,7 @@ class Class():
                            marker='.')  # , marker=pids[0])
         plt.show(block=True)
 
-    def display_2d_hists(self, ind=50):
+    def display_2d_hists(self, ind=None):
         rows = 2
         cols = 4
         gs = gridspec.GridSpec(rows, cols)
