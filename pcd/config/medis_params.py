@@ -14,8 +14,8 @@ iop.set_atmosdata('200102')
 iop.set_aberdata('Subaru')
 iop.set_testdir('')
 
-ap.sample_time = 0.5
-ap.numframes = 10
+ap.sample_time = 0.05
+ap.numframes = 100
 sp.uniform_flux = False
 sp.show_wframe = False
 sp.save_obs = True
