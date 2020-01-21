@@ -59,11 +59,11 @@ class Obsfile():
                            self.photons[f][:, 3] >= objbounds[2],
                            self.photons[f][:, 3] <= objbounds[3]), axis=0)
 
-            inten = np.histogram(self.photons[f][locs,0], bins=100)[0]
+            inten = np.histogram(self.photons[f][locs,0], bins=2500)[0]
             axes[0,o].plot(self.photons[f][locs,0])
             axes[0,o].set_title(objs[o])
             axes[1,o].plot(inten)
-            axes[2,o].hist(inten, bins=25)
+            axes[2,o].hist(inten, bins=50)
 
         plt.show(block=True)
 
