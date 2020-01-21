@@ -50,7 +50,7 @@ for astro in ['angles', 'lods', 'contrasts']:
     elif isinstance(config['data'][astro], int):
         config['data'][astro] = [config['data'][astro]] * config['data']['num_planets']
 
-    elif isinstance(config['data'][astro], str):  # todo replace with regex to recognise tuples
+    elif isinstance(config['data'][astro], str):  # todo replace with regex to recognise tuples - https://stackoverflow.com/questions/39553008/how-to-read-a-python-tuple-using-pyyaml
         config['data'][astro]= config['data'][astro].replace('(', '')
         config['data'][astro]= config['data'][astro].replace(')', '')
         bounds = np.float_(config['data'][astro].split(','))
