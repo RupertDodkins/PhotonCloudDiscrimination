@@ -55,8 +55,6 @@ class Obsfile():
                 range(mp.array_size[1])]
 
         coord = 'tpxy'
-        print(np.shape(self.photons[0]))
-        print(self.photons[0][:5,:5])
 
         for o in range(self.numobj):
             H, _ = np.histogramdd(self.photons[o], bins=bins)
@@ -147,16 +145,9 @@ class Class():
         red_photons = np.delete(all_photons, rand_cut, axis=0)
         red_pids = np.delete(all_pids, rand_cut, axis=0)
 
-        # print(all_photons.shape, red_photons.shape, len(rand_cut))
-
         # raster the list so that every self.num_point start a new input cube
         self.chunked_photons = red_photons.reshape(-1, self.num_point, self.dimensions)
         self.chunked_pids = red_pids.reshape(-1, self.num_point, 1)
-
-        # dprint(self.chunked_photons.shape, self.chunked_pids.shape, np.shape(self.chunked_pids[0] == 0),
-        #        np.shape(np.transpose([self.chunked_pids[0] == 0])), np.shape(np.transpose(self.chunked_pids[0] == 0)),
-        #        np.shape((self.chunked_pids[0] == 0)[:, 0]))  # , np.shape(self.chunked_photons[0, [self.chunked_pids[0]==0], 0]))
-        # dprint(np.shape(self.chunked_photons[0, (self.chunked_pids[0] == 0)[:, 0], 0]))
 
     def save_class(self):
         num_input = len(self.chunked_photons)  # 16
@@ -195,9 +186,7 @@ class Class():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         colors = ['blue', 'orange']
-        # bounds = [0,len(photons[0]),data.shape[1]]
-        # ax.scatter(data[:, bounds[i]:bounds[i + 1], 0], data[0, bounds[i]:bounds[i + 1], 1],
-        #            data[0, bounds[i]:bounds[i + 1], 2], c=c)
+
         for t in range(10):
             print(t)
             for i, c in enumerate(colors):
@@ -224,12 +213,6 @@ class Class():
 
         coord = 'tpxy'
 
-        print(self.chunked_photons[0, (self.chunked_pids[0,:,0] == 0), :].shape,
-              self.chunked_photons[0, (self.chunked_pids[0,:,0] == 0), :][:5],
-              self.chunked_photons.shape, self.chunked_pids.shape)
-        print(self.data.shape, self.labels.shape, self.data[100, (self.labels[100]==0)][::500], self.data[0, (self.labels[0]==0)].shape)
-        # plt.imshow(self.labels)
-        # plt.show(block=True)
         for o in range(config['planets']+1):
             if ind:
                 H, _ = np.histogramdd(self.data[ind, (self.labels[ind] == o)], bins=bins)
