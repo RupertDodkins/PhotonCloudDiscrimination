@@ -50,7 +50,8 @@ class Obsfile():
             for j in range(cols):
                 axes.append(fig.add_subplot(gs[i, j]))
         axes = np.array(axes).reshape(rows, cols)
-
+        plt.tight_layout()
+        
         bins = [np.linspace(0, ap.sample_time * ap.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
                 range(mp.array_size[1])]
 
@@ -207,6 +208,8 @@ class Class():
             for j in range(cols):
                 axes.append(fig.add_subplot(gs[i, j]))
         axes = np.array(axes).reshape(rows, cols)
+        fig.suptitle(f'{ind}', fontsize=16)
+        plt.tight_layout()
 
         bins = [np.linspace(0, ap.sample_time * ap.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
                 range(mp.array_size[1])]
