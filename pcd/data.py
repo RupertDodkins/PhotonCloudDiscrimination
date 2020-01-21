@@ -26,18 +26,52 @@ class Obsfile():
         ap.lods = lods
         self.numobj = len(ap.contrast) + 1
 
-        # if not os.path.exists(iop.obs_seq):
-        gpd.run_medis()
+        if not os.path.exists(iop.fields):
+            gpd.run_medis()
 
         self.photons = pipe.read_obs()
-        if config['debug']:
-            print(self.photons[0][:10])
-            self.display_raw_image()
-            self.display_raw_cloud()
+        # if config['debug']:
+        #     print(self.photons[0][:10])
+        #     # self.display_raw_image()
+        #     # self.display_raw_cloud()
+        #     self.display_2d_hists()
 
     def log_params(self):
         """ Log the MEDIS parameters for reference """
         raise NotImplemented
+
+    def display_2d_hists(self):
+        rows = 2
+        cols = 4
+        gs = gridspec.GridSpec(rows, cols)
+        fig = plt.figure(figsize=(12, 6), constrained_layout=True)
+        axes = []
+        for i in range(rows):
+            for j in range(cols):
+                axes.append(fig.add_subplot(gs[i, j]))
+        axes = np.array(axes).reshape(rows, cols)
+
+        bins = [np.linspace(0, ap.sample_time * ap.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
+                range(mp.array_size[1])]
+
+        coord = 'tpxy'
+        print(np.shape(self.photons[0]))
+        print(self.photons[0][:5,:5])
+
+        for o in range(self.numobj):
+            H, _ = np.histogramdd(self.photons[o], bins=bins)
+
+            for p, pair in enumerate([['x','y'], ['x','p'], ['x','t'], ['p','t']]):
+                inds = coord.find(pair[0]), coord.find(pair[1])
+                sumaxis = tuple(np.delete(range(len(coord)), inds))
+                image = np.sum(H, axis=sumaxis)
+                if pair in [['x','p'], ['x','t']]:
+                    image = image.T
+                    inds = inds[1], inds[0]
+                axes[o,p].imshow(image, norm=LogNorm(), aspect='auto',
+                                 extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
+
+        plt.show(block=True)
 
     def display_raw_cloud(self, downsamp=10000):
         fig = plt.figure()
@@ -51,7 +85,7 @@ class Obsfile():
     def display_raw_image(self):
         for o in range(self.numobj):
             fig = plt.figure()
-            bins = [np.linspace(0, ap.sample_time * ap.numframes, 2), np.linspace(-90, 0, 4), range(mp.array_size[0]),
+            bins = [np.linspace(0, ap.sample_time * ap.numframes, 3), np.linspace(-90, 0, 4), range(mp.array_size[0]),
                     range(mp.array_size[1])]
             nrows, ncols = len(bins[0])-1, len(bins[1])-1
             gs = gridspec.GridSpec(nrows, ncols)
@@ -124,34 +158,38 @@ class Class():
         #        np.shape((self.chunked_pids[0] == 0)[:, 0]))  # , np.shape(self.chunked_photons[0, [self.chunked_pids[0]==0], 0]))
         # dprint(np.shape(self.chunked_photons[0, (self.chunked_pids[0] == 0)[:, 0], 0]))
 
-        if config['debug']:
-            self.display_chunk_cloud()
-
     def save_class(self):
         num_input = len(self.chunked_photons)  # 16
 
         reorder = np.apply_along_axis(np.random.permutation, 1,
                                       np.ones((num_input, self.num_point)) * np.arange(self.num_point)).astype(np.int)
 
-        self.labels = np.ones((num_input), dtype=int) * self.label
         self.data = np.array([self.chunked_photons[o, order] for o, order in enumerate(reorder)])
-        self.pids = np.array([self.chunked_pids[o, order] for o, order in enumerate(reorder)])[:, :, 0]
+        if config['task'] == 'part_seg':
+            self.labels = np.ones((num_input), dtype=int) * self.label
+            self.pids = np.array([self.chunked_pids[o, order] for o, order in enumerate(reorder)])[:, :, 0]
+        else:
+            self.labels = np.array([self.chunked_pids[o, order] for o, order in enumerate(reorder)])[:, :, 0]
+
+        if config['debug']:
+            # self.display_chunk_cloud()
+            self.display_2d_hists()
 
         with h5py.File(self.trainfile, 'w') as hf:
             hf.create_dataset('data', data=self.data[:-int(self.test_frac * num_input)])
+            hf.create_dataset('label', data=self.labels[:-int(self.test_frac * num_input)])
             if config['task'] == 'part_seg':
-                hf.create_dataset('label', data=self.labels[:-int(self.test_frac * num_input)])
                 hf.create_dataset('pid', data=self.pids[:-int(self.test_frac * num_input)])
-            else:
-                hf.create_dataset('label', data=self.pids[:-int(self.test_frac * num_input)])
+            # else:
+            #     hf.create_dataset('label', data=self.labels[:-int(self.test_frac * num_input)])
 
         with h5py.File(self.testfile, 'w') as hf:
             hf.create_dataset('data', data=self.data[-int(self.test_frac * num_input):])
+            hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
             if config['task'] == 'part_seg':
-                hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
                 hf.create_dataset('pid', data=self.pids[-int(self.test_frac * num_input):])
-            else:
-                hf.create_dataset('label', data=self.pids[-int(self.test_frac * num_input):])
+            # else:
+            #     hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
 
     def display_chunk_cloud(self, downsamp=10):
         fig = plt.figure()
@@ -168,6 +206,46 @@ class Class():
                            self.chunked_photons[t, (self.chunked_pids[t,:,0] == i), 1][::downsamp],
                            self.chunked_photons[t, (self.chunked_pids[t,:,0] == i), 2][::downsamp], c=c,
                            marker='.')  # , marker=pids[0])
+        plt.show(block=True)
+
+    def display_2d_hists(self, ind=50):
+        rows = 2
+        cols = 4
+        gs = gridspec.GridSpec(rows, cols)
+        fig = plt.figure(figsize=(12, 6), constrained_layout=True)
+        axes = []
+        for i in range(rows):
+            for j in range(cols):
+                axes.append(fig.add_subplot(gs[i, j]))
+        axes = np.array(axes).reshape(rows, cols)
+
+        bins = [np.linspace(0, ap.sample_time * ap.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
+                range(mp.array_size[1])]
+
+        coord = 'tpxy'
+
+        print(self.chunked_photons[0, (self.chunked_pids[0,:,0] == 0), :].shape,
+              self.chunked_photons[0, (self.chunked_pids[0,:,0] == 0), :][:5],
+              self.chunked_photons.shape, self.chunked_pids.shape)
+        print(self.data.shape, self.labels.shape, self.data[100, (self.labels[100]==0)][::500], self.data[0, (self.labels[0]==0)].shape)
+        # plt.imshow(self.labels)
+        # plt.show(block=True)
+        for o in range(config['planets']+1):
+            if ind:
+                H, _ = np.histogramdd(self.data[ind, (self.labels[ind] == o)], bins=bins)
+            else:
+                H, _ = np.histogramdd(self.data[self.labels==o], bins=bins)
+
+            for p, pair in enumerate([['x','y'], ['x','p'], ['x','t'], ['p','t']]):
+                inds = coord.find(pair[0]), coord.find(pair[1])
+                sumaxis = tuple(np.delete(range(len(coord)), inds))
+                image = np.sum(H, axis=sumaxis)
+                if pair in [['x','p'], ['x','t']]:
+                    image = image.T
+                    inds = inds[1], inds[0]
+                axes[o,p].imshow(image, norm=LogNorm(), aspect='auto',
+                                 extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
+
         plt.show(block=True)
 
 class Data():
