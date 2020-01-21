@@ -1,6 +1,7 @@
 import os
 import yaml
 import re
+import numpy as np
 
 # because pycharm doesn't read the environment variables so this sets the automatically
 # for quick switching between machines
@@ -41,10 +42,31 @@ with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.yml"
     except yaml.YAMLError as exc:
         config = exc
 
-trainfile, extension = config['trainfile'].split('.')
-config['trainfiles'] = [trainfile+str(l)+'.'+extension for l in range(config['planets'])]
-testfile, extension = config['testfile'].split('.')
-config['testfiles'] = [testfile+str(l)+'.'+extension for l in range(config['planets'])]
+# deduce astro params
+for astro in ['angles', 'lods', 'contrasts']:
+    if isinstance(config['data'][astro], list):
+        assert len(config['data'][astro]) == config['data']['num_planets']
+
+    elif isinstance(config['data'][astro], int):
+        config['data'][astro] = [config['data'][astro]] * config['data']['num_planets']
+
+    elif isinstance(config['data'][astro], str):  # todo replace with regex to recognise tuples
+        config['data'][astro]= config['data'][astro].replace('(', '')
+        config['data'][astro]= config['data'][astro].replace(')', '')
+        bounds = np.float_(config['data'][astro].split(','))
+        config['data'][astro] = np.random.uniform(bounds[0], bounds[1], config['data']['num_planets'])
+
+# deduce filenames
+num_test = config['data']['num_planets'] * config['test_frac']
+assert num_test.is_integer()
+num_test = int(num_test)
+num_train = config['data']['num_planets'] - num_test
+
+testfile, extension = config['testfiles'].split('{id}')
+config['testfiles']  = [testfile + str(l) + extension for l in range(num_test)]
+trainfile, extension = config['trainfiles'].split('{id}')
+config['trainfiles'] = [trainfile + str(l) + extension for l in range(num_train)]
 
 if __name__ == '__main__':
-    print(config)
+    from pprint import pprint
+    pprint(config)

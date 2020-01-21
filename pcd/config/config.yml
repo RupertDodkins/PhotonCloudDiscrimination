@@ -1,20 +1,20 @@
 debug: True
-#pcd_data: /Users/dodkins/PCD_data/
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 200118/]  # concat DIR with that suffix and store as WDIR
+working_dir: &WDIR !join [*DIR, 200121b/]  # concat DIR with that suffix and store as WDIR
 num_point: &PN 4096
-trainfile: !join [*WDIR, trainfile.h5]
-testfile: !join [*WDIR, testfile.h5]
+trainfiles: !join [*WDIR, 'trainfile_{id}.h5']
+testfiles: !join [*WDIR, 'testfile_{id}.h5']
 test_frac: 0.2
 dimensions: 4
-planets: 1
 task: sem_seg
+classes: 2  # star=0, planet=1
 
 data:
+  num_planets: 5 # int or leave blank if providing list of angles/lods/contrasts below
   medis_config: "medis_params.py"
-  angles: [0] #[0,90,180,270]
-  lods: [2.5] #[2,4,6]
-  contrasts: [-2]  # [-2, -6]
+  angles: (0, 360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  lods: (2, 4.5) # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  contrasts: -2  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
 
 train:
   gpu: 1
@@ -24,7 +24,7 @@ train:
   wd: 0.
   log_dir: *WDIR
   data_dir: *WDIR
-  ml_meta: !join [*WDIR, ml_meta.pkl]
+  ml_meta: !join [*WDIR, ml_meta_rand.pkl]
   learning_rate: 0.001
   momentum: 0.9
   optimizer: adam
