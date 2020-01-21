@@ -51,10 +51,10 @@ def cloud(epoch=-1):
     metrics = get_metrics(cur_seg, pred_seg_res)
     three_d_scatter(cur_data, metrics)
 
-def show_2d_hists(start=-5, include_true_neg=True):
+def show_2d_hists(start=-20, end=-1, include_true_neg=True):
     """ Shows the net predictions on the cloud as a series of 2d histograms """
     alldata = load_meta()
-    numsteps = len(alldata)
+    allsteps = len(alldata)
 
     # set axes
     plt.ion()
@@ -90,11 +90,13 @@ def show_2d_hists(start=-5, include_true_neg=True):
 
     ims = []
     if start < 0:
-        start = numsteps+start
+        start = allsteps+start
+    if end < 0:
+        end = allsteps + end
 
-    for epoch in range(start, numsteps):
+    for epoch in range(start, end+1):
         print(epoch)
-        fig.suptitle(f'step {epoch}/{numsteps-1}', fontsize=16)
+        fig.suptitle(f'step {epoch}/{allsteps-1}', fontsize=16)
 
         if len(ims) > 0:
             [im.remove() for im in ims]
@@ -141,7 +143,7 @@ def show_2d_hists(start=-5, include_true_neg=True):
 
     plt.show(block=True)
 
-def show_performance(start=-10, include_true_neg=False):
+def show_performance(start=0, include_true_neg=False):
     """ Random assortment of prediction performance plots """
     alldata = load_meta()
     numsteps = len(alldata)
