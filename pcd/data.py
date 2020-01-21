@@ -16,26 +16,25 @@ from config.medis_params import sp, ap, tp, iop, mp
 from config.config import config
 import utils
 
-MEDIS_CONTRAST = ap.contrast[0]*1  # stor here as it gets changed in Obsfile
-MEDIS_LODS = ap.lods[0]*1
-
 class Obsfile():
     """ Gets the photon lists from MEDIS """
-    def __init__(self, label, contrast, lods):
-        iop.set_testdir(str(label))
+    def __init__(self, name, contrast, lods, debug=False):
+        iop.set_testdir(str(name))
         ap.contrast = contrast
         ap.lods = lods
-        self.numobj = len(ap.contrast) + 1
+        self.numobj = config['data']['num_planets']+1
 
         if not os.path.exists(iop.fields):
             gpd.run_medis()
 
         self.photons = pipe.read_obs()
-        if config['debug']:
-        #     # self.display_raw_image()
-        #     # self.display_raw_cloud()
-        #     self.display_2d_hists()
-            self.plot_stats()
+        # if config['debug']:
+        if debug:
+        # #     # self.display_raw_image()
+        # #     # self.display_raw_cloud()
+            self.display_2d_hists()
+            # self.plot_stats()
+        dprint(len(self.photons))
 
     def log_params(self):
         """ Log the MEDIS parameters for reference """
@@ -68,22 +67,12 @@ class Obsfile():
         plt.show(block=True)
 
     def display_2d_hists(self):
-        rows = 2
-        cols = 4
-        gs = gridspec.GridSpec(rows, cols)
-        fig = plt.figure(figsize=(12, 6), constrained_layout=True)
-        axes = []
-        for i in range(rows):
-            for j in range(cols):
-                axes.append(fig.add_subplot(gs[i, j]))
-        axes = np.array(axes).reshape(rows, cols)
-        plt.tight_layout()
+        fig, axes = utils.init_grid(rows=self.numobj, cols=4)
 
         bins = [np.linspace(0, ap.sample_time * ap.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
                 range(mp.array_size[1])]
 
         coord = 'tpxy'
-
         for o in range(self.numobj):
             H, _ = np.histogramdd(self.photons[o], bins=bins)
 
@@ -129,12 +118,9 @@ class Obsfile():
 
 class Class():
     """ Creates the input data in the NN input format """
-    def __init__(self, photons, label, trainfile, testfile):
+    def __init__(self, photons, outfile):
         self.photons = photons
-        self.label = label
-
-        self.trainfile = trainfile
-        self.testfile = testfile
+        self.outfile = outfile
 
         self.num_point = config['num_point']
         self.test_frac = config['test_frac']
@@ -150,15 +136,15 @@ class Class():
     def chunk_photons(self):
         all_photons = np.empty((0, self.dimensions))  # photonlist with both types of photon
         all_pids = np.empty((0, 1))  # associated photon labels
-        total_photons = sum([len(self.photons[i]) for i in range(self.label+1)])
+        total_photons = sum([len(self.photons[i]) for i in range(config['classes'])])
 
-        for o in range(self.label+1):
+        for o in range(config['classes']):
             # dprint((all_photons.shape, self.photons[o][:, [0, 2, 3]].shape))
             if self.dimensions == 3:
                 all_photons = np.concatenate((all_photons, self.photons[o][:, [0, 2, 3]]), axis=0)
             else:
                 all_photons = np.concatenate((all_photons, self.photons[o]), axis=0)
-            all_pids = np.concatenate((all_pids, np.ones_like((self.photons[o][:, [0]])) * o), axis=0)
+            all_pids = np.concatenate((all_pids, np.ones_like((self.photons[o][:, [0]])) * int(o>0)), axis=0)
 
         # sort by time so the planet photons slot amongst the star photons at the appropriate point
         time_sort = np.argsort(all_photons[:, 0]).astype(int)
@@ -185,7 +171,7 @@ class Class():
 
         self.data = np.array([self.chunked_photons[o, order] for o, order in enumerate(reorder)])
         if config['task'] == 'part_seg':
-            self.labels = np.ones((num_input), dtype=int) * self.label
+            self.labels = np.ones((num_input), dtype=int) #* self.label
             self.pids = np.array([self.chunked_pids[o, order] for o, order in enumerate(reorder)])[:, :, 0]
         else:
             self.labels = np.array([self.chunked_pids[o, order] for o, order in enumerate(reorder)])[:, :, 0]
@@ -194,21 +180,18 @@ class Class():
             # self.display_chunk_cloud()
             self.display_2d_hists()
 
-        with h5py.File(self.trainfile, 'w') as hf:
-            hf.create_dataset('data', data=self.data[:-int(self.test_frac * num_input)])
-            hf.create_dataset('label', data=self.labels[:-int(self.test_frac * num_input)])
+        with h5py.File(self.outfile, 'w') as hf:
+            # hf.create_dataset('data', data=self.data[:-int(self.test_frac * num_input)])
+            hf.create_dataset('data', data=self.data)
+            hf.create_dataset('label', data=self.labels)
             if config['task'] == 'part_seg':
-                hf.create_dataset('pid', data=self.pids[:-int(self.test_frac * num_input)])
-            # else:
-            #     hf.create_dataset('label', data=self.labels[:-int(self.test_frac * num_input)])
+                hf.create_dataset('pid', data=self.pids)
 
-        with h5py.File(self.testfile, 'w') as hf:
-            hf.create_dataset('data', data=self.data[-int(self.test_frac * num_input):])
-            hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
-            if config['task'] == 'part_seg':
-                hf.create_dataset('pid', data=self.pids[-int(self.test_frac * num_input):])
-            # else:
-            #     hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
+        # with h5py.File(self.testfile, 'w') as hf:
+        #     hf.create_dataset('data', data=self.data[-int(self.test_frac * num_input):])
+        #     hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
+        #     if config['task'] == 'part_seg':
+        #         hf.create_dataset('pid', data=self.pids[-int(self.test_frac * num_input):])
 
     def display_chunk_cloud(self, downsamp=10):
         fig = plt.figure()
@@ -226,15 +209,8 @@ class Class():
         plt.show(block=True)
 
     def display_2d_hists(self, ind=None):
-        rows = 2
-        cols = 4
-        gs = gridspec.GridSpec(rows, cols)
-        fig = plt.figure(figsize=(12, 6), constrained_layout=True)
-        axes = []
-        for i in range(rows):
-            for j in range(cols):
-                axes.append(fig.add_subplot(gs[i, j]))
-        axes = np.array(axes).reshape(rows, cols)
+        fig, axes = utils.init_grid(rows=config['classes'], cols=config['dimensions'])
+        # fig, axes = utils.init_grid(rows=config['classes'], cols=4)
         fig.suptitle(f'{ind}', fontsize=16)
         plt.tight_layout()
 
@@ -243,7 +219,7 @@ class Class():
 
         coord = 'tpxy'
 
-        for o in range(config['planets']+1):
+        for o in range(config['classes']):
             if ind:
                 H, _ = np.histogramdd(self.data[ind, (self.labels[ind] == o)], bins=bins)
             else:
@@ -264,31 +240,33 @@ class Class():
 class Data():
     """ Infers the sequence of parameters to pass to each Obsfile """
     def __init__(self, config=None):
-        self.numobj = config['planets']+1
+        self.numobj = config['data']['num_planets']+1
         self.contrasts, self.lods = self.observation_params()
         # self.trainfiles, self.testfiles = self.get_filenames()
 
     def observation_params(self):
         # numplanets = config['max_planets']
-        contrasts = [10**config['data']['contrasts'][0]]
-        disp = config['data']['lods'][0]
-        angle = config['data']['angles'][0]
-        lods = [disp*np.array([np.sin(angle),np.cos(angle)])]
+        contrasts = np.power(np.ones((config['data']['num_planets']))*10, config['data']['contrasts'])
+        disp = config['data']['lods']
+        angle = config['data']['angles']
+        lods = (np.array([np.sin(np.deg2rad(angle)),np.cos(np.deg2rad(angle))])*disp).T
 
         return contrasts, lods
 
+from random import sample
 def make_input(config):
     d = Data(config)
 
-    trainfile = config['trainfiles'][0]
-    testfile = config['testfiles'][0]
-    for label in range(1, d.numobj):
-        contrast = d.contrasts[:label]
-        lod = d.lods[:label]
+    contrast = d.contrasts
+    lod = d.lods
+    photons = Obsfile(name='0', contrast=contrast, lods=lod, debug=True).photons
 
-        photons = Obsfile(label, contrast, lod).photons
+    outfiles = np.append(config['trainfiles'], config['testfiles'])
+    for label, outfile in zip(range(config['data']['num_planets']),outfiles):
+        print(label, outfile)
+        class_photons = np.array(photons)[[0,label+1]]
 
-        c = Class(photons, label, trainfile, testfile)
+        c = Class(class_photons, outfile)
         c.chunk_photons()
         c.save_class()
 
