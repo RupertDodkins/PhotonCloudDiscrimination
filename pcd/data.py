@@ -118,9 +118,10 @@ class Obsfile():
 
 class Class():
     """ Creates the input data in the NN input format """
-    def __init__(self, photons, outfile):
+    def __init__(self, photons, outfile, debug=False):
         self.photons = photons
         self.outfile = outfile
+        self.debug = debug
 
         self.num_point = config['num_point']
         self.test_frac = config['test_frac']
@@ -176,7 +177,8 @@ class Class():
         else:
             self.labels = np.array([self.chunked_pids[o, order] for o, order in enumerate(reorder)])[:, :, 0]
 
-        if config['debug']:
+        # if config['debug']:
+        if self.debug:
             # self.display_chunk_cloud()
             self.display_2d_hists()
 
@@ -262,11 +264,13 @@ def make_input(config):
     photons = Obsfile(name='0', contrast=contrast, lods=lod, debug=True).photons
 
     outfiles = np.append(config['trainfiles'], config['testfiles'])
+    debugs = [False] * config['data']['num_planets']
+    debugs[0] = True
     for label, outfile in zip(range(config['data']['num_planets']),outfiles):
         print(label, outfile)
         class_photons = np.array(photons)[[0,label+1]]
 
-        c = Class(class_photons, outfile)
+        c = Class(class_photons, outfile, debug=debugs[label])
         c.chunk_photons()
         c.save_class()
 

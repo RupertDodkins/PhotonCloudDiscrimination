@@ -51,7 +51,7 @@ def cloud(epoch=-1):
     metrics = get_metrics(cur_seg, pred_seg_res)
     three_d_scatter(cur_data, metrics)
 
-def show_2d_hists(start=-20, end=-1, include_true_neg=True):
+def show_2d_hists(start=-30, end=-1, include_true_neg=True):
     """ Shows the net predictions on the cloud as a series of 2d histograms """
     alldata = load_meta()
     allsteps = len(alldata)

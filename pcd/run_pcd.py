@@ -1,5 +1,15 @@
 #!/mnt/data0/miniconda/envs/medis/bin/python
 
+#todo
+# try absense of photons having values to equalise # of datapoints between stars and planets. Essentially binning into hypercube
+# change the loss metric such that correct planet identification is worth more than star identification
+# training data being equal brightness but test still having big difference
+# zero-mean and normalize the input data to create unit hyperspheres - might be weighting x-y more than time
+# figure out reverse SSD
+# bias dataset or bias classifier to account for relative lack of planet data
+
+
+
 import pcd
 import argparse
 import data

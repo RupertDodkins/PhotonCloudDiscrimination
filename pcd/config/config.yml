@@ -10,11 +10,11 @@ task: sem_seg
 classes: 2  # star=0, planet=1
 
 data:
-  num_planets: 10 # int or leave blank if providing list of angles/lods/contrasts below
+  num_planets: 15 # int or leave blank if providing list of angles/lods/contrasts below
   medis_config: "medis_params.py"
   angles: (0, 360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
   lods: (2, 4.5) # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
-  contrasts: -2  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  contrasts: -3  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
 
 train:
   gpu: 1
@@ -24,7 +24,7 @@ train:
   wd: 0.
   log_dir: *WDIR
   data_dir: *WDIR
-  ml_meta: !join [*WDIR, ml_meta_rand.pkl]
+  ml_meta: !join [*WDIR, ml_meta_CB.pkl]
   learning_rate: 0.001
   momentum: 0.9
   optimizer: adam
