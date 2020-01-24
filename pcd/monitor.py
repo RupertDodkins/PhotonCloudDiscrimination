@@ -11,6 +11,7 @@ import numpy as np
 import time
 from config.medis_params import mp, ap
 from config.config import config
+import utils
 
 def load_meta():
     alldata = []
@@ -83,16 +84,8 @@ def plot_metric_tesseracts(start=0, end=-1, include_true_neg=True):
     # set axes
     plt.ion()
     plt.show(block=True)
-    fig = plt.figure(figsize=(12,9), constrained_layout=True)
-    cols = 4
     rows = 4 if include_true_neg else 3
-    gs = gridspec.GridSpec(rows, cols)
-
-    axes = []
-    for i in range(rows):
-        for j in range(cols):
-            axes.append(fig.add_subplot(gs[i, j]))
-    axes = np.array(axes).reshape(rows, cols)
+    fig, axes = utils.init_grid(rows=rows, cols=config['dimensions'], figsize=(12,9))
 
     plt.figtext(.07,.8,'True Planet', fontsize=18, ha='left')
     plt.figtext(.07,.56,'Missed Planet', fontsize=18, ha='left')
@@ -109,8 +102,6 @@ def plot_metric_tesseracts(start=0, end=-1, include_true_neg=True):
     axes[-1,1].set_xlabel('Phase')
     axes[-1,2].set_xlabel('Time')
     axes[-1,3].set_xlabel('Phase')
-
-    plt.tight_layout()
 
     ims = []
     if start < 0:

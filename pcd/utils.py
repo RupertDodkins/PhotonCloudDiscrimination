@@ -2,9 +2,11 @@ import matplotlib.pylab as plt
 from matplotlib import gridspec
 import numpy as np
 
-def init_grid(rows, cols):
+def init_grid(rows, cols, figsize=None):
     gs = gridspec.GridSpec(rows, cols)
-    fig = plt.figure(figsize=(12, rows*3), constrained_layout=True)
+    if figsize is None:
+        figsize = (12, 3*cols)
+    fig = plt.figure(figsize=figsize, constrained_layout=True)
     axes = []
     for i in range(rows):
         for j in range(cols):
