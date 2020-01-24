@@ -1,27 +1,69 @@
 #!/mnt/data0/miniconda/envs/medis/bin/python
 
-import pcd
-import argparse
+import os
+# import argparse
 import data
 import train
 import evaluate
+import predict
+from pcd.config.config import config, run
+from multiprocessing import Pool
+from pprint import pprint
+
+def run_multiple_func(pool, funcnames):
+    funcs = []
+    for func in funcnames:
+        evaluate_func = getattr(evaluate, func)
+        funcs.append(pool.apply_async(evaluate_func, ))
+
+    pool.close()
+    pool.join()
+
+    for func in funcs:
+        func.get()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Photon Cloud Discrimination')
-    parser.add_argument('--make-input', default=False, dest='make_input', action='store_true',
-                        help='Make input data for training and testing')
+    pprint(run)
 
-    parser.add_argument('--train', default=False, dest='train', action='store_true',
-                        help='Train neural network')
+    if run['new_input']:
+        if os.path.exists(config['working_dir']):
+            choice = input(f"Overwrite {config['working_dir']} ? [Y/n]")
+            if choice == 'n':
+                pass
+        else:
+            data.make_input(config)
 
-    parser.add_argument('--eval', default=False, dest='evaluate', action='store_true',
-                        help='Apply neural network algorithm')
+    if run['train'] and run['evaluate']['metric_funcs']:
+        pool = Pool(processes=len(run['evaluate']['metric_funcs']) + 1)
+        pool.apply_async(train.train, [config])
+        run_multiple_func(pool, run['evaluate']['metric_funcs'])
+        # funcs = []
+        # for func in run['evaluate']['metric_funcs']:
+        #     evaluate_func = getattr(evaluate, func)
+        #     pool.apply_async(evaluate_func, )
+        # 
+        # pool.close()
+        # pool.join()
+        # 
+        # for func in funcs:
+        #     func.get()
 
-    args = parser.parse_args()
-    if args.make_input:
-        data.make_input(pcd.config)
-    elif args.train:
-        train.train(pcd.config)
-    elif args.evaluate:
-        evaluate.evaluate()
+    elif run['train']:
+        train.train(config)
 
+    elif run['evaluate']['metric_funcs']:
+        pool = Pool(processes=len(run['evaluate']['metric_funcs']))
+        run_multiple_func(pool, run['evaluate']['metric_funcs'])
+        # funcs = []
+        # for func in run['evaluate']['metric_funcs']:
+        #     evaluate_func = getattr(evaluate, func)
+        #     funcs.append(pool.apply_async(evaluate_func, ))
+        #
+        # pool.close()
+        # pool.join()
+        #
+        # for func in funcs:
+        #     func.get()
+
+    if run['predict']:
+        predict.predict()
