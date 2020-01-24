@@ -8,6 +8,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import LogNorm
 from matplotlib import gridspec
 import numpy as np
+import time
 from config.medis_params import mp, ap
 from config.config import config
 
@@ -53,8 +54,29 @@ def cloud(epoch=-1):
     metrics = get_metrics(cur_seg, pred_seg_res)
     three_d_scatter(cur_data, metrics)
 
-def show_2d_hists(start=-30, end=-1, include_true_neg=True):
-    """ Shows the net predictions on the cloud as a series of 2d histograms """
+def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos):
+    return ('      +------+------+\n'
+            '     1| %.2f | %.2f |\n'
+            'Pred -+------+------+\n'
+            '     0| %.2f | %.2f |\n'
+            '      +------+------+\n'
+            '         0   |  1\n'
+            '           True' % (false_pos/tot_pos, true_pos/tot_pos,
+                                 true_neg/tot_neg, false_neg/tot_neg))
+
+def plot_metric_tesseracts(start=-4, end=-1, include_true_neg=True):
+    """ Shows the net predictions on the cloud as a series of 2d histograms in 4x4 grid of form
+
+         xy | py | ty | pt
+    TP |
+    FP |
+    TN |
+    FN |
+
+
+    """
+    assert end != 0
+    
     alldata = load_meta()
     allsteps = len(alldata)
 
@@ -96,6 +118,8 @@ def show_2d_hists(start=-30, end=-1, include_true_neg=True):
     if end < 0:
         end = allsteps + end
 
+    time.sleep(5)
+
     for epoch in range(start, end+1):
         print(epoch)
         fig.suptitle(f'step {epoch}/{allsteps-1}', fontsize=16)
@@ -107,15 +131,12 @@ def show_2d_hists(start=-30, end=-1, include_true_neg=True):
         cur_seg, pred_seg_res, cur_data = alldata[epoch]
 
         metrics = get_metrics(cur_seg, pred_seg_res, include_true_neg)
-        metrics[2], metrics[3] = metrics[3], metrics[2]
-        # types = ['true_pos', 'false_neg', 'false_pos', 'true_neg']
-        # if not include_true_neg:
-        #     types = types[:-1]
+        true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
+                                                   int(np.sum(metrics[2])), int(np.sum(metrics[3])),
+        print(true_pos, false_neg, false_pos, true_neg)
+        print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg+false_neg, true_pos+false_pos))
 
-        # bins = [[range(mp.array_size[0]), range(mp.array_size[1])],
-        #         [range(mp.array_size[0]), np.linspace(0, ap.sample_time * ap.numframes, 50)],
-        #         [range(mp.array_size[0]), np.linspace(-120, 0, 50)],
-        #         [np.linspace(0, ap.sample_time * ap.numframes, 50), np.linspace(0, -120, 50)]]
+        metrics[2], metrics[3] = metrics[3], metrics[2]
 
         for row, metric in enumerate(metrics):
             red_data = cur_data[metric]
@@ -253,4 +274,4 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
     # show_performance()
-    show_2d_hists()
+    plot_metric_tesseracts()
