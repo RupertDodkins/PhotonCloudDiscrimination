@@ -64,7 +64,7 @@ def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos)
             '           True' % (false_pos/tot_pos, true_pos/tot_pos,
                                  true_neg/tot_neg, false_neg/tot_neg))
 
-def plot_metric_tesseracts(start=-4, end=-1, include_true_neg=True):
+def plot_metric_tesseracts(start=0, end=-1, include_true_neg=True):
     """ Shows the net predictions on the cloud as a series of 2d histograms in 4x4 grid of form
 
          xy | py | ty | pt
@@ -133,8 +133,12 @@ def plot_metric_tesseracts(start=-4, end=-1, include_true_neg=True):
         metrics = get_metrics(cur_seg, pred_seg_res, include_true_neg)
         true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
                                                    int(np.sum(metrics[2])), int(np.sum(metrics[3])),
+
         print(true_pos, false_neg, false_pos, true_neg)
-        print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg+false_neg, true_pos+false_pos))
+        try:
+            print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg+false_neg, true_pos+false_pos))
+        except ZeroDivisionError:
+            pass
 
         metrics[2], metrics[3] = metrics[3], metrics[2]
 
