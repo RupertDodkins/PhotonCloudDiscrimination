@@ -255,7 +255,7 @@ class Data():
 
         return contrasts, lods
 
-from random import sample
+# from random import sample
 def make_input(config):
     d = Data(config)
 
