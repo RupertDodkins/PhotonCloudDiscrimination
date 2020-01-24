@@ -1,5 +1,4 @@
 """
-
 Using a trained model, make predictions on unseen data
 
 Inputs
@@ -14,3 +13,6 @@ Wavefront modulation
 Outputs
 Photon Lables
 """
+
+def predict():
+    raise NotImplementedError
