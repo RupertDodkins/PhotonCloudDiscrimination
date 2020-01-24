@@ -36,6 +36,7 @@ def join(loader, node):
 ## register the tag handler
 yaml.add_constructor('!join', join)
 
+# load config.yml
 with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.yml"), 'r') as stream:
     try:
         config = yaml.load(stream)
@@ -67,6 +68,15 @@ config['testfiles']  = [testfile + str(l) + extension for l in range(num_test)]
 trainfile, extension = config['trainfiles'].split('{id}')
 config['trainfiles'] = [trainfile + str(l) + extension for l in range(num_train)]
 
+# load run.yml
+with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "run.yml"), 'r') as stream:
+    try:
+        run = yaml.load(stream)
+    except yaml.YAMLError as exc:
+        run = exc
+
 if __name__ == '__main__':
     from pprint import pprint
     pprint(config)
+    print('\n')
+    pprint(run)
