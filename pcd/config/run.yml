@@ -1,8 +1,9 @@
 new_input: False  # see run_pcd for examples
-train: False
+train: True
 
 evaluate:
-  metric_funcs: [metric_streams] #, metric_tesseracts
+  metric_funcs: [continuous_streams]
+#  metric_funcs: [metric_streams]
   args: (0,-1)  # single tuple of args will be applied to all funcs
 
 predict: False

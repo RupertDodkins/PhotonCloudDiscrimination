@@ -60,7 +60,65 @@ def cloud(epoch=-1):
     metrics = get_metric_distributions(cur_seg, pred_seg_res)
     three_d_scatter(cur_data, metrics)
 
-def metric_streams(start=0, end=10):
+def continuous_metric_streams():
+    while not os.path.exists(config['train']['ml_meta']):
+        print('Waiting for model to output first metric data')
+        time.sleep(10)
+
+    # set axes
+    plt.ion()
+    plt.show(block=True)
+    metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Precision', 'Recall']
+    fig, axes = utils.init_grid(rows=2, cols=int(np.ceil(len(metric_types)/2)), figsize=(12, 9))
+    axes = axes.flatten()
+    for ax, metric_type in zip(axes, metric_types):
+        ax.set_title(metric_type)
+
+    true_pos_stream, false_neg_stream, false_pos_stream, true_neg_stream = [np.empty(0)]*4
+    lines = []
+
+    while True:
+        alldata = load_meta()
+        print(len(alldata), len(true_pos_stream))
+        if len(alldata) > 1 and len(true_pos_stream)==0:
+            print('*** Warning *** ML cache already has mutliple time steps saved. Consider running metric_streams or '
+                  'creating new file. Stopping continuous_streams.')
+            # break
+
+        elif len(alldata) == len(true_pos_stream):
+            print('No new data yet')
+            time.sleep(10)
+            continue
+
+        else:
+            cur_seg, pred_seg_res, cur_data = alldata[-1]  # will get progressively slower as whole file load is required to get final element
+
+            metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
+            true_pos_stream = np.append(true_pos_stream, int(np.sum(metrics_vol[0])))
+            false_neg_stream = np.append(false_neg_stream, int(np.sum(metrics_vol[1])))
+            false_pos_stream = np.append(false_pos_stream, int(np.sum(metrics_vol[2])))
+            true_neg_stream = np.append(true_neg_stream, int(np.sum(metrics_vol[3])))
+
+            true_pos_stream = np.array(true_pos_stream)
+            false_neg_stream = np.array(false_neg_stream)
+            false_pos_stream = np.array(false_pos_stream)
+            true_neg_stream = np.array(true_neg_stream)
+            precision = true_pos_stream / (true_pos_stream + false_pos_stream)
+            recall = true_pos_stream / (true_pos_stream + false_neg_stream)
+
+            metrics = [true_pos_stream, false_neg_stream, false_pos_stream, true_neg_stream, precision, recall]
+
+            if len(lines) > 0:
+                [line.pop(0).remove() for line in lines]
+                lines = []
+
+            for ax, metric_type, metric in zip(axes, metric_types, metrics):
+                lines.append(ax.plot(metric))
+
+            fig.canvas.draw()
+        time.sleep(1)
+
+def single_metric_streams(start=0, end=10):
     """
     Shows metrics as a function of training steps
 
@@ -215,4 +273,4 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
     metric_tesseracts(end = args.epoch)
-    metric_streams(end = args.epoch)
+    single_metric_streams(end = args.epoch)
