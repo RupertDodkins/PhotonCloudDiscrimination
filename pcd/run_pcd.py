@@ -7,7 +7,7 @@ import train
 import evaluate
 import predict
 from pcd.config.config import config, run
-from multiprocessing import Pool
+from multiprocessing import Pool, Process
 from pprint import pprint
 
 def run_multiple_func(pool, funcnames):
@@ -27,43 +27,35 @@ if __name__ == "__main__":
 
     if run['new_input']:
         if os.path.exists(config['working_dir']):
-            choice = input(f"Overwrite {config['working_dir']} ? [Y/n]")
-            if choice == 'n':
-                pass
-        else:
-            data.make_input(config)
+            if config['overwrite_cache']:
+                data.make_input(config)
 
     if run['train'] and run['evaluate']['metric_funcs']:
-        pool = Pool(processes=len(run['evaluate']['metric_funcs']) + 1)
-        pool.apply_async(train.train, [config])
-        run_multiple_func(pool, run['evaluate']['metric_funcs'])
-        # funcs = []
-        # for func in run['evaluate']['metric_funcs']:
-        #     evaluate_func = getattr(evaluate, func)
-        #     pool.apply_async(evaluate_func, )
-        # 
-        # pool.close()
-        # pool.join()
-        # 
-        # for func in funcs:
-        #     func.get()
+        if os.path.exists(config['train']['ml_meta']):
+            if config['overwrite_cache']:
+                os.remove(config['train']['ml_meta'])
+
+        funcs = []
+        funcs.append(Process(target=train.train, args=()))
+
+        for func in run['evaluate']['metric_funcs']:
+            evaluate_func = getattr(evaluate, func)
+            funcs.append(Process(target=evaluate_func, args=()))
+
+        [p.start() for p in funcs]
+        [p.join() for p in funcs]
 
     elif run['train']:
-        train.train(config)
+        train.train()
 
     elif run['evaluate']['metric_funcs']:
-        pool = Pool(processes=len(run['evaluate']['metric_funcs']))
-        run_multiple_func(pool, run['evaluate']['metric_funcs'])
-        # funcs = []
-        # for func in run['evaluate']['metric_funcs']:
-        #     evaluate_func = getattr(evaluate, func)
-        #     funcs.append(pool.apply_async(evaluate_func, ))
-        #
-        # pool.close()
-        # pool.join()
-        #
-        # for func in funcs:
-        #     func.get()
+        funcs = []
+        for func in run['evaluate']['metric_funcs']:
+            evaluate_func = getattr(evaluate, func)
+            funcs.append(Process(target=evaluate_func, args=()))
+
+        [p.start() for p in funcs]
+        [p.join() for p in funcs]
 
     if run['predict']:
         predict.predict()
