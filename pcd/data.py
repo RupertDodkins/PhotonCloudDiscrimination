@@ -24,7 +24,7 @@ class Obsfile():
         ap.lods = lods
         self.numobj = config['data']['num_planets']+1
 
-        if not os.path.exists(iop.fields):
+        if not os.path.exists(iop.obs_table):
             gpd.run_medis()
 
         self.photons = pipe.read_obs()
