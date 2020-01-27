@@ -3,15 +3,15 @@ Monitors the predictions of a training model and plots various metrics
 
 inputs
 the pkl cache
+
+#todo consolidate metric streams into a single class and do the same for metric tesseracts
 """
 
 import os
 import argparse
 import pickle
 import matplotlib.pylab as plt
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import LogNorm
-from matplotlib import gridspec
 import numpy as np
 import time
 from medis.Utils.misc import dprint
@@ -61,6 +61,22 @@ def cloud(epoch=-1):
     cur_seg, pred_seg_res, cur_data, _ = alldata[epoch]
     metrics = get_metric_distributions(cur_seg, pred_seg_res)
     three_d_scatter(cur_data, metrics)
+
+
+# class Metric_Streams():
+#     def __init__(self, alldata, continuous=False):
+#         alldata = load_meta()
+#         allsteps = len(alldata)
+#         # start, end = get_range_inds(start, end, allsteps)
+#
+#         self.metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall']
+#         axes = initialize_axes()
+#         metrics = initialize_metrics()
+#
+#         if continuous:
+#             self.continuous_metric_streams()
+#         else:
+#             self.onetime_metric_streams()
 
 def continuous_metric_streams():
     while not os.path.exists(config['train']['outputs']):
@@ -187,7 +203,6 @@ def update_metrics(cur_seg, pred_seg_res, train, metrics):
     metrics[kind]['Recall'] = np.append(metrics[kind]['Recall'], true_pos / (true_pos/false_neg))
 
     return metrics
-
 
 def onetime_metric_streams(start=0, end=10):
     """
