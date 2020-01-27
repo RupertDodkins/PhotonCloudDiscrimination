@@ -9,6 +9,7 @@ import predict
 from pcd.config.config import config, run
 from multiprocessing import Pool, Process
 from pprint import pprint
+import shutil
 
 def run_multiple_func(pool, funcnames):
     funcs = []
@@ -25,16 +26,16 @@ def run_multiple_func(pool, funcnames):
 if __name__ == "__main__":
     pprint(run)
 
+    if config['overwrite_cache']:
+        print('Warning: code will remove and replace certain files')
+
     if run['new_input']:
         if os.path.exists(config['working_dir']):
             if config['overwrite_cache']:
-                data.make_input(config)
+                shutil.rmtree(config['working_dir'])
+        data.make_input(config)
 
     if run['train'] and run['evaluate']['metric_funcs']:
-        if os.path.exists(config['train']['ml_meta']):
-            if config['overwrite_cache']:
-                os.remove(config['train']['ml_meta'])
-
         funcs = []
         funcs.append(Process(target=train.train, args=()))
 
