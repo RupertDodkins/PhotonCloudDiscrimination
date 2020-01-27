@@ -14,18 +14,20 @@ from matplotlib.colors import LogNorm
 from matplotlib import gridspec
 import numpy as np
 import time
+from medis.Utils.misc import dprint
 from config.medis_params import mp, ap
 from config.config import config
 import utils
 
 def load_meta():
     alldata = []
-    with open(config['train']['ml_meta'], 'rb') as handle:
+    with open(config['train']['outputs'], 'rb') as handle:
         while True:
             try:
                 alldata.append(pickle.load(handle))
             except EOFError:
                 break
+
     return alldata
 
 def get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True):
@@ -56,69 +58,138 @@ def three_d_scatter(cur_data, metrics):
 
 def cloud(epoch=-1):
     alldata = load_meta()
-    cur_seg, pred_seg_res, cur_data = alldata[epoch]
+    cur_seg, pred_seg_res, cur_data, _ = alldata[epoch]
     metrics = get_metric_distributions(cur_seg, pred_seg_res)
     three_d_scatter(cur_data, metrics)
 
 def continuous_metric_streams():
-    while not os.path.exists(config['train']['ml_meta']):
+    while not os.path.exists(config['train']['outputs']):
         print('Waiting for model to output first metric data')
-        time.sleep(10)
+        time.sleep(5)
 
     # set axes
     plt.ion()
     plt.show(block=True)
-    metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Precision', 'Recall']
-    fig, axes = utils.init_grid(rows=2, cols=int(np.ceil(len(metric_types)/2)), figsize=(12, 9))
-    axes = axes.flatten()
-    for ax, metric_type in zip(axes, metric_types):
-        ax.set_title(metric_type)
+    metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall']
+    # fig, axes = utils.init_grid(rows=2, cols=int(np.ceil(len(metric_types)/2)), figsize=(12, 9))
+    # axes = axes.flatten()
+    # for ax, metric_type in zip(axes, metric_types):
+    #     ax.set_title(metric_type)
+    #
+    # metric_keys = ['true_pos_stream', 'false_neg_stream', 'false_pos_stream', 'true_neg_stream', 'recall']
+    # values = [np.empty(0)]*5
+    #
+    # metrics = {}
+    # metrics['train'] = dict(zip(metric_keys, values))
+    # metrics['test'] = dict(zip(metric_keys, values))
+    # print(metrics['train'])
+    # metrics['train']['lines'], metrics['test']['lines'] = [], []
+    # metrics['train']['color'], metrics['test']['color'] = 'C1', 'C0'
 
-    true_pos_stream, false_neg_stream, false_pos_stream, true_neg_stream = [np.empty(0)]*4
-    lines = []
+    axes = initialize_axes(metric_types)
+    metrics = initialize_metrics(metric_types)
 
+    epoch = 0
     while True:
         alldata = load_meta()
-        print(len(alldata), len(true_pos_stream))
-        if len(alldata) > 1 and len(true_pos_stream)==0:
+        if len(alldata) > 1 and len(metrics['train']['true_pos_stream'])==0:
             print('*** Warning *** ML cache already has mutliple time steps saved. Consider running metric_streams or '
                   'creating new file. Stopping continuous_streams.')
             # break
 
-        elif len(alldata) == len(true_pos_stream):
-            print('No new data yet')
-            time.sleep(10)
-            continue
+        dprint(len(alldata), len(metrics['train']['true_pos_stream']), len(metrics['train']['true_pos_stream']))
 
-        else:
-            cur_seg, pred_seg_res, cur_data = alldata[-1]  # will get progressively slower as whole file load is required to get final element
+        if len(alldata) == len(metrics['train']['true_pos_stream'])+len(metrics['train']['true_pos_stream']) + 1:
+            cur_seg, pred_seg_res, cur_data, train = alldata[-1]  # will get progressively slower as whole file load is required to get final element
 
-            metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
-            true_pos_stream = np.append(true_pos_stream, int(np.sum(metrics_vol[0])))
-            false_neg_stream = np.append(false_neg_stream, int(np.sum(metrics_vol[1])))
-            false_pos_stream = np.append(false_pos_stream, int(np.sum(metrics_vol[2])))
-            true_neg_stream = np.append(true_neg_stream, int(np.sum(metrics_vol[3])))
+            if train:
+                # todo unhard code this
+                epoch += 0.25
+                epochs = np.arange(0,epoch,0.25)
+            else:
+                epochs = np.arange(0, epoch, 1)
 
-            true_pos_stream = np.array(true_pos_stream)
-            false_neg_stream = np.array(false_neg_stream)
-            false_pos_stream = np.array(false_pos_stream)
-            true_neg_stream = np.array(true_neg_stream)
-            precision = true_pos_stream / (true_pos_stream + false_pos_stream)
-            recall = true_pos_stream / (true_pos_stream + false_neg_stream)
+            # metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
+            #
+            # true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics_vol[0])), int(np.sum(metrics_vol[1])), \
+            #                                            int(np.sum(metrics_vol[2])), int(np.sum(metrics_vol[3])),
+            #
+            # tot_neg, tot_pos = true_neg + false_neg, true_pos + false_pos
+            # dprint(tot_neg, tot_pos, train)
+            #
+            kind = 'train' if train else 'test'
+            # metrics[kind]['true_pos_stream'] = np.append(metrics[kind]['true_pos_stream'], true_pos/tot_pos)
+            # metrics[kind]['false_neg_stream'] = np.append(metrics[kind]['false_neg_stream'], false_neg/tot_neg)
+            # metrics[kind]['false_pos_stream'] = np.append(metrics[kind]['false_pos_stream'], false_pos/tot_pos)
+            # metrics[kind]['true_neg_stream'] = np.append(metrics[kind]['true_neg_stream'], true_neg/tot_neg)
+            #
+            # if metrics[kind]['true_pos_stream'][-1] + metrics[kind]['false_neg_stream'][-1] == 0:
+            #     metrics[kind]['recall'] = np.append(metrics[kind]['recall'], np.nan)
+            # else:
+            #     metrics[kind]['recall'] = np.append(metrics[kind]['recall'],
+            #                                         metrics[kind]['true_pos_stream'][-1] /
+            #                                         (metrics[kind]['true_pos_stream'][-1] +
+            #                                          metrics[kind]['false_neg_stream'][-1]))
+            metrics = update_metrics(cur_seg, pred_seg_res, kind, metrics)
 
-            metrics = [true_pos_stream, false_neg_stream, false_pos_stream, true_neg_stream, precision, recall]
+            if len(metrics[kind]['lines']) > 0:
+                [line.pop(0).remove() for line in metrics[kind]['lines']]
+                metrics[kind]['lines'] = []
 
-            if len(lines) > 0:
-                [line.pop(0).remove() for line in lines]
-                lines = []
-
-            for ax, metric_type, metric in zip(axes, metric_types, metrics):
-                lines.append(ax.plot(metric))
+            dprint(len(epochs), len(metrics[kind][metric_types[0]]), epochs, metrics[kind][metric_types[0]])
+            for ax, metric_key in zip(axes, metric_types):
+                metrics[kind]['lines'].append(ax.plot(epochs, metrics[kind][metric_key], c=metrics['train']['color']))
 
             fig.canvas.draw()
-        time.sleep(1)
+        else:
+            print('No new data yet')
+            time.sleep(10)
+            # continue
+        time.sleep(0.01)
 
-def single_metric_streams(start=0, end=10):
+def initialize_axes(metric_types):
+    fig, axes = utils.init_grid(rows=2, cols=int(np.ceil(len(metric_types)/2)), figsize=(12, 9))
+    axes = axes.flatten()
+    for ax, metric_type in zip(axes, metric_types):
+        ax.set_title(metric_type)
+    return axes
+
+def update_axes():
+    pass
+
+def initialize_metrics(metric_types):
+    values = [np.empty(0)]*5
+
+    metrics = {}
+    metrics['train'] = dict(zip(metric_types, values))
+    metrics['test'] = dict(zip(metric_types, values))
+    print(metrics['train'])
+    metrics['train']['lines'], metrics['test']['lines'] = [], []
+    metrics['train']['color'], metrics['test']['color'] = 'C1', 'C0'
+
+    return metrics
+
+def update_metrics(cur_seg, pred_seg_res, train, metrics):
+    metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
+
+    # np.float64 so ZeroDivideErrors -> np.nan
+    true_pos, false_neg, false_pos, true_neg = np.float64(np.sum(metrics_vol[0])), np.float64(np.sum(metrics_vol[1])), \
+                                               np.float64(np.sum(metrics_vol[2])), np.float64(np.sum(metrics_vol[3])),
+
+    tot_neg, tot_pos = true_neg + false_neg, true_pos + false_pos
+    dprint(tot_neg, tot_pos, train)
+
+    kind = 'train' if train else 'test'
+    metrics[kind]['True Positive'] = np.append(metrics[kind]['True Positive'], true_pos / tot_pos)
+    metrics[kind]['False Negative'] = np.append(metrics[kind]['False Negative'], false_neg / tot_neg)
+    metrics[kind]['False Positive'] = np.append(metrics[kind]['False Positive'], false_pos / tot_pos)
+    metrics[kind]['True Negative'] = np.append(metrics[kind]['True Negative'], true_neg / tot_neg)
+    metrics[kind]['Recall'] = np.append(metrics[kind]['Recall'], true_pos / (true_pos/false_neg))
+
+    return metrics
+
+
+def onetime_metric_streams(start=0, end=10):
     """
     Shows metrics as a function of training steps
 
@@ -127,40 +198,42 @@ def single_metric_streams(start=0, end=10):
 
     alldata = load_meta()
     allsteps = len(alldata)
+    start, end = get_range_inds(start, end, allsteps)
+
+    metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall']
+    axes = initialize_axes(metric_types)
+    metrics = initialize_metrics(metric_types)
+
+    for epoch in range(start, end+1):
+        print(epoch)
+
+        cur_seg, pred_seg_res, _, train = alldata[epoch]
+        dprint(train)
+
+        metrics = update_metrics(cur_seg, pred_seg_res, train, metrics)
+
+    for kind in ['train', 'test']:
+        if kind == 'train':
+            num_train = end+1 - (end+1)//5
+            epochs = np.arange(0, num_train/4, 0.25)
+        else:
+            num_test = end // 5
+            epochs = np.arange(0, num_test, 1)
+
+        print(kind, end+1, len(epochs), len(metrics[kind][metric_types[0]]))
+        for ax, metric_key in zip(axes, metric_types):
+            metrics[kind]['lines'].append(ax.plot(epochs, metrics[kind][metric_key], c=metrics[kind]['color'],
+                                                  label=kind))
+    axes[2].legend()
+
+    plt.show(block=True)
+
+def get_range_inds(start, end, allsteps):
     if start < 0:
         start = allsteps+start
     if end < 0:
         end = allsteps + end
-
-    metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Precision', 'Recall']
-    fig, axes = utils.init_grid(rows=2, cols=len(metric_types), figsize=(12,9))
-    axes = axes.flatten()
-
-    true_pos_stream, false_neg_stream, false_pos_stream, true_neg_stream = [], [], [], []
-    for epoch in range(start, end+1):
-        print(epoch)
-
-        cur_seg, pred_seg_res, cur_data = alldata[epoch]
-
-        metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
-        true_pos_stream.append(int(np.sum(metrics_vol[0])))
-        false_neg_stream.append(int(np.sum(metrics_vol[1])))
-        false_pos_stream.append(int(np.sum(metrics_vol[2])))
-        true_neg_stream.append(int(np.sum(metrics_vol[3])))
-
-    true_pos_stream = np.array(true_pos_stream)
-    false_neg_stream = np.array(false_neg_stream)
-    false_pos_stream = np.array(false_pos_stream)
-    true_neg_stream = np.array(true_neg_stream)
-    precision = true_pos_stream/(true_pos_stream+false_pos_stream)
-    recall = true_pos_stream/(true_pos_stream+false_neg_stream)
-
-    metrics = [true_pos_stream, false_neg_stream, false_pos_stream, true_neg_stream, precision, recall]
-    for ax, metric_type, metric in zip(axes, metric_types, metrics):
-        ax.plot(metric)
-        ax.set_title(metric_type)
-
-    plt.show(block=True)
+    return start, end
 
 def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos):
     return ('      +------+------+\n'
@@ -171,6 +244,9 @@ def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos)
             '         0   |  1\n'
             '           True' % (false_pos/tot_pos, true_pos/tot_pos,
                                  true_neg/tot_neg, false_neg/tot_neg))
+
+def continuous_metric_tesseracts():
+    pass
 
 def metric_tesseracts(start=0, end=-1, include_true_neg=True):
     """ Shows the net predictions on the cloud as a series of 2d histograms in 4x4 grid of form
@@ -211,10 +287,7 @@ def metric_tesseracts(start=0, end=-1, include_true_neg=True):
     axes[-1,3].set_xlabel('Phase')
 
     ims = []
-    if start < 0:
-        start = allsteps+start
-    if end < 0:
-        end = allsteps + end
+    start, end = get_range_inds(start, end, allsteps)
 
     time.sleep(5)
 
@@ -226,7 +299,7 @@ def metric_tesseracts(start=0, end=-1, include_true_neg=True):
             [im.remove() for im in ims]
             ims = []
 
-        cur_seg, pred_seg_res, cur_data = alldata[epoch]
+        cur_seg, pred_seg_res, cur_data, _ = alldata[epoch]
 
         metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg)
         true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
@@ -272,5 +345,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
+    onetime_metric_streams(end = args.epoch)
     metric_tesseracts(end = args.epoch)
-    single_metric_streams(end = args.epoch)
