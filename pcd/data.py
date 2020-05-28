@@ -7,27 +7,47 @@ from matplotlib.colors import LogNorm
 import random
 import h5py
 
-import medis.get_photon_data as gpd
-import medis.save_photon_data as spd
-import medis.Detector.pipeline as pipe
-from medis.Utils.misc import dprint
+from medis.medis_main import RunMedis
+from medis.MKIDS import Camera
+from medis.utils import dprint
+from medis.plot_tools import grid
 
-from config.medis_params import sp, ap, tp, iop, mp
-from config.config import config
+from pcd.config.medis_params import sp, ap, tp, iop, mp
+from pcd.config.config import config
 import utils
+
+# sp.numframes = 5
 
 class Obsfile():
     """ Gets the photon lists from MEDIS """
     def __init__(self, name, contrast, lods, debug=False):
-        iop.set_testdir(str(name))
+        iop.update_testname(str(name))
         ap.contrast = contrast
-        ap.lods = lods
+        ap.companion_xy = lods
+        ap.spectra = [ap.spectra]*(len(contrast)+1)
         self.numobj = config['data']['num_planets']+1
 
-        if not os.path.exists(iop.obs_table):
-            gpd.run_medis()
+        # if not os.path.exists(iop.obs_table):
+        #     gpd.run_medis()
+        # self.photons = pipe.read_obs()
+        sim = RunMedis(name=name, product='fields')
+        sim()
+        sim.cam = Camera(usesave=False, product='photons')
 
-        self.photons = pipe.read_obs()
+        self.photons = []
+        for o in range(self.numobj):
+            if sim.tel.num_chunks == 1:
+                object_fields = sim.tel.cpx_sequence[:,:,:,o][:,:,:,np.newaxis]
+                photons = sim.cam(fields=object_fields)['photons']
+            else:
+                photons = np.empty((4,0))
+                for ichunk in range(int(sim.tel.num_chunks)):
+                    fields = sim.tel.load_fields(span=(ichunk * sim.tel.chunk_steps, (ichunk + 1) * sim.tel.chunk_steps))['fields']
+                    object_fields = fields[:, :, :, o][:, :, :, np.newaxis]
+                    photons = np.hstack((photons, sim.cam(fields=object_fields, abs_step=ichunk * sim.tel.chunk_steps)['photons']))
+
+            self.photons.append(photons.T)
+
         # if config['debug']:
         if debug:
         # #     # self.display_raw_image()
@@ -69,7 +89,7 @@ class Obsfile():
     def display_2d_hists(self):
         fig, axes = utils.init_grid(rows=self.numobj, cols=4)
 
-        bins = [np.linspace(0, ap.sample_time * ap.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
+        bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
                 range(mp.array_size[1])]
 
         coord = 'tpxy'
@@ -100,7 +120,7 @@ class Obsfile():
     def display_raw_image(self):
         for o in range(self.numobj):
             fig = plt.figure()
-            bins = [np.linspace(0, ap.sample_time * ap.numframes, 3), np.linspace(-90, 0, 4), range(mp.array_size[0]),
+            bins = [np.linspace(0, sp.sample_time * sp.numframes, 3), np.linspace(-90, 0, 4), range(mp.array_size[0]),
                     range(mp.array_size[1])]
             nrows, ncols = len(bins[0])-1, len(bins[1])-1
             gs = gridspec.GridSpec(nrows, ncols)
@@ -118,9 +138,10 @@ class Obsfile():
 
 class Class():
     """ Creates the input data in the NN input format """
-    def __init__(self, photons, outfile, debug=False):
-        self.photons = photons
+    def __init__(self, photons, outfile, type='train', debug=False):
+        self.photons = photons #[self.normalise_photons(photons[o]) for o in range(config['classes'])]
         self.outfile = outfile
+        self.type = type
         self.debug = debug
 
         self.num_point = config['num_point']
@@ -134,37 +155,72 @@ class Class():
         self.data = []
         self.pids = []
 
-    def chunk_photons(self):
-        all_photons = np.empty((0, self.dimensions))  # photonlist with both types of photon
-        all_pids = np.empty((0, 1))  # associated photon labels
-        total_photons = sum([len(self.photons[i]) for i in range(config['classes'])])
+        self.normalised = False
+
+    def process_photons(self):
+        self.aggregate_photons()
+        self.sort_photons()
+        self.normalise_photons()
+        self.chunk_photons()
+
+    def aggregate_photons(self):
+        self.all_photons = np.empty((0, self.dimensions))  # photonlist with both types of photon
+        self.all_pids = np.empty((0, 1))  # associated photon labels
 
         for o in range(config['classes']):
-            # dprint((all_photons.shape, self.photons[o][:, [0, 2, 3]].shape))
+            # dprint((self.all_photons.shape, self.photons[o][:, [0, 2, 3]].shape))
             if self.dimensions == 3:
-                all_photons = np.concatenate((all_photons, self.photons[o][:, [0, 2, 3]]), axis=0)
+                self.all_photons = np.concatenate((self.all_photons, self.photons[o][:, [0, 2, 3]]), axis=0)
             else:
-                all_photons = np.concatenate((all_photons, self.photons[o]), axis=0)
-            all_pids = np.concatenate((all_pids, np.ones_like((self.photons[o][:, [0]])) * int(o>0)), axis=0)
+                self.all_photons = np.concatenate((self.all_photons, self.photons[o]), axis=0)
+            self.all_pids = np.concatenate((self.all_pids, np.ones_like((self.photons[o][:, [0]])) * int(o>0)), axis=0)
 
+    def sort_photons(self):
         # sort by time so the planet photons slot amongst the star photons at the appropriate point
-        time_sort = np.argsort(all_photons[:, 0]).astype(int)
+        time_sort = np.argsort(self.all_photons[:, 0]).astype(int)
 
-        all_photons = all_photons[time_sort]
-        all_pids = all_pids[time_sort]
+        self.all_photons = self.all_photons[time_sort]
+        self.all_pids = self.all_pids[time_sort]
 
+    def normalise_photons(self, use_bounds=True):
+        # normalise photons
+        if use_bounds:
+            bounds = np.array([[0, sp.sample_time * sp.numframes],
+                               mp.wavecal_coeffs[0] * ap.wvl_range + mp.wavecal_coeffs[1],  # [-116, 0], ap.wvl_range = np.array([800, 1500]), mp.wavecal_coeffs = [1. / 6, -250]
+                               [0, mp.array_size[0]],
+                               [0, mp.array_size[1]]])
+            self.all_photons -= np.mean(bounds, axis=1)
+            self.all_photons /= np.max(self.all_photons, axis=0)
+        else:
+            self.all_photons -= np.mean(self.all_photons, axis=0)
+            self.all_photons /= np.std(self.all_photons, axis=0)
+        self.normalised = True
+
+    def chunk_photons(self):
         # remove residual photons that won't fit into a input cube for the network
+        total_photons = sum([len(self.photons[i]) for i in range(config['classes'])])
         cut = int(total_photons % self.num_point)
         # dprint(cut)
         rand_cut = random.sample(range(total_photons), cut)
-        red_photons = np.delete(all_photons, rand_cut, axis=0)
-        red_pids = np.delete(all_pids, rand_cut, axis=0)
+        red_photons = np.delete(self.all_photons, rand_cut, axis=0)
+        red_pids = np.delete(self.all_pids, rand_cut, axis=0)
 
         # raster the list so that every self.num_point start a new input cube
-        self.chunked_photons = red_photons.reshape(-1, self.num_point, self.dimensions)
-        self.chunked_pids = red_pids.reshape(-1, self.num_point, 1)
+        self.chunked_photons = red_photons.reshape(-1, self.num_point, self.dimensions, order='F')
+        # plt.plot(self.chunked_photons[:, 0, 0])
+        # plt.figure()
+        # plt.plot(self.chunked_photons[0, :, 0])
+        # plt.show(block=True)
+        self.chunked_pids = red_pids.reshape(-1, self.num_point, 1, order='F')
 
     def save_class(self):
+        if self.type == 'test':
+            num_test = int(len(self.chunked_pids)*config['test_frac']/(1-config['test_frac']))
+            print('saveclass', len(self.chunked_pids), config['test_frac']/(1-config['test_frac']), num_test)
+            remove_inds = random.sample(range(len(self.chunked_pids)), num_test)
+            self.chunked_photons = self.chunked_photons[remove_inds]
+            self.chunked_pids = self.chunked_pids[remove_inds]
+
         num_input = len(self.chunked_photons)  # 16
 
         reorder = np.apply_along_axis(np.random.permutation, 1,
@@ -177,6 +233,19 @@ class Class():
         else:
             self.labels = np.array([self.chunked_pids[o, order] for o, order in enumerate(reorder)])[:, :, 0]
 
+        if config['pointnet_version'] == 2:
+            if self.type == 'train':
+                self.smpw = [self.chunked_pids.size/(self.chunked_pids == o).sum() for o in range(config['classes'])]
+                # self.smpw = [1, 3.87]
+                # labelweights, _ = np.histogram(self.chunked_pids, range(config['classes']+1))
+                # labelweights = labelweights.astype(np.float32)
+                # labelweights = labelweights/np.sum(labelweights)
+                # self.smpw = 1/np.log(1.2+labelweights)
+                # self.smpw = labelweights
+            else:
+                self.smpw = np.ones((config['classes']))
+
+        print('weights', self.smpw)
         # if config['debug']:
         if self.debug:
             # self.display_chunk_cloud()
@@ -188,7 +257,8 @@ class Class():
             hf.create_dataset('label', data=self.labels)
             if config['task'] == 'part_seg':
                 hf.create_dataset('pid', data=self.pids)
-
+            if config['pointnet_version'] == 2:
+                hf.create_dataset('smpw', data=self.smpw)
         # with h5py.File(self.testfile, 'w') as hf:
         #     hf.create_dataset('data', data=self.data[-int(self.test_frac * num_input):])
         #     hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
@@ -216,8 +286,11 @@ class Class():
         fig.suptitle(f'{ind}', fontsize=16)
         plt.tight_layout()
 
-        bins = [np.linspace(0, ap.sample_time * ap.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
-                range(mp.array_size[1])]
+        if not self.normalised:
+            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
+                    range(mp.array_size[1])]
+        else:
+            bins = [np.linspace(-1,1,50), np.linspace(-1,1,50), np.linspace(-1,1,150), np.linspace(-1,1,150)]
 
         coord = 'tpxy'
 
@@ -261,17 +334,19 @@ def make_input(config):
 
     contrast = d.contrasts
     lod = d.lods
-    photons = Obsfile(name='0', contrast=contrast, lods=lod, debug=True).photons
+    photons = Obsfile(name='0', contrast=contrast, lods=lod).photons
 
     outfiles = np.append(config['trainfiles'], config['testfiles'])
     debugs = [False] * config['data']['num_planets']
+    types = ['train', 'test']
     debugs[0] = True
-    for label, outfile in zip(range(config['data']['num_planets']),outfiles):
-        print(label, outfile)
-        class_photons = np.array(photons)[[0,label+1]]
+    print([photon.shape for photon in photons])
+    for label, outfile, type in zip(range(config['data']['num_planets']),outfiles, types):
+        print(label, outfile, type)
+        class_photons = [photons[0], photons[label+1]]
 
-        c = Class(class_photons, outfile, debug=debugs[label])
-        c.chunk_photons()
+        c = Class(class_photons, outfile, type=type, debug=debugs[label])
+        c.process_photons()
         c.save_class()
 
 if __name__ == "__main__":
