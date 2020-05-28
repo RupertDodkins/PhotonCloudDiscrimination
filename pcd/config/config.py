@@ -10,7 +10,8 @@ home = expanduser("~")
 if home == '/Users/dodkins':
     os.environ["WORKING_DIR"] = "/Users/dodkins"
 elif home == '/home/dodkins':
-    os.environ["WORKING_DIR"] = "/mnt/data0/dodkins"
+    # os.environ["WORKING_DIR"] = "/mnt/data0/dodkins"
+    os.environ["WORKING_DIR"] = "/home/dodkins"
 else:
     print('System not recognised. Make sure $WORKING_DIR is set')
 
@@ -58,10 +59,10 @@ for astro in ['angles', 'lods', 'contrasts']:
         config['data'][astro] = np.random.uniform(bounds[0], bounds[1], config['data']['num_planets'])
 
 # deduce filenames
-num_test = config['data']['num_planets'] * config['test_frac']
-assert num_test.is_integer()
-num_test = int(num_test)
-num_train = config['data']['num_planets'] - num_test
+num_test = config['data']['num_planets'] -1 #todo num_test and num_train should be num_planets and both train and test data should include data from both obsfiles
+# assert num_test.is_integer()
+# num_test = int(num_test)
+num_train = config['data']['num_planets']-1 #- num_test
 
 testfile, extension = config['testfiles'].split('{id}')
 config['testfiles']  = [testfile + str(l) + extension for l in range(num_test)]
