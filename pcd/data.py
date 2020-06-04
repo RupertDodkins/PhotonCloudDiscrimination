@@ -7,7 +7,8 @@ from matplotlib.colors import LogNorm
 import random
 import h5py
 
-from medis.medis_main import RunMedis
+# from medis.medis_main import RunMedis
+from medis.telescope import Telescope
 from medis.MKIDS import Camera
 from medis.utils import dprint
 from medis.plot_tools import grid
@@ -30,22 +31,28 @@ class Obsfile():
         # if not os.path.exists(iop.obs_table):
         #     gpd.run_medis()
         # self.photons = pipe.read_obs()
-        sim = RunMedis(name=name, product='fields')
-        sim()
-        sim.cam = Camera(usesave=False, product='photons')
+        # sim = RunMedis(name=name, product='fields')
+        # sim()  # generate all the fields
+
+        # instantiate but don't generate data yet
+        tel = Telescope(usesave=sp.save_to_disk)
+        cam = Camera(usesave=False, product='photons')
 
         self.photons = []
         for o in range(self.numobj):
-            if sim.tel.num_chunks == 1:
-                object_fields = sim.tel.cpx_sequence[:,:,:,o][:,:,:,np.newaxis]
-                photons = sim.cam(fields=object_fields)['photons']
+            if tel.num_chunks == 1:
+                fields = tel()['fields']
+                object_fields = fields[:,:,:,o][:,:,:,np.newaxis]
+                photons = cam(fields=object_fields)['photons']
             else:
                 photons = np.empty((4,0))
-                for ichunk in range(int(sim.tel.num_chunks)):
-                    fields = sim.tel.load_fields(span=(ichunk * sim.tel.chunk_steps, (ichunk + 1) * sim.tel.chunk_steps))['fields']
-                    object_fields = fields[:, :, :, o][:, :, :, np.newaxis]
-                    photons = np.hstack((photons, sim.cam(fields=object_fields, abs_step=ichunk * sim.tel.chunk_steps)['photons']))
+                for ichunk in range(int(np.ceil(tel.num_chunks))):
 
+                    fields = tel()['fields']
+                    object_fields = fields[:, :, :, o][:, :, :, np.newaxis]
+                    photons = np.hstack((photons, cam(fields=object_fields, abs_step=tel.chunk_span[ichunk])['photons']))
+                    pass
+                tel.chunk_ind = 0
             self.photons.append(photons.T)
 
         # if config['debug']:
@@ -339,7 +346,7 @@ def make_input(config):
     outfiles = np.append(config['trainfiles'], config['testfiles'])
     debugs = [False] * config['data']['num_planets']
     types = ['train', 'test']
-    debugs[0] = True
+    # debugs[0] = True
     print([photon.shape for photon in photons])
     for label, outfile, type in zip(range(config['data']['num_planets']),outfiles, types):
         print(label, outfile, type)

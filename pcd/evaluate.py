@@ -14,14 +14,14 @@ import matplotlib.pylab as plt
 from matplotlib.colors import LogNorm
 import numpy as np
 import time
-from medis.Utils.misc import dprint
+from medis.utils import dprint
 from pcd.config.medis_params import mp, ap
 from pcd.config.config import config
 import utils
 import h5py
 
 class Grid_Visualiser():
-    def __init__(self, rows, cols, numsteps, row_headings=None, xtitles=None, ytitles=None):
+    def __init__(self, rows, cols, numsteps, row_headings=None, xtitles=None, ytitles=None, norm=None):
 
         self.numsteps = numsteps
 
@@ -61,7 +61,7 @@ class Grid_Visualiser():
             else:
                 self.it += 1
                 print(self.it, event.button)
-            self.draw(self.steps[self.it], self.trainbools[self.it], self.images[self.it])
+            self.draw(self.steps[self.it], self.trainbools[self.it], self.images[self.it], norm=norm)
 
         cid = self.fig.canvas.mpl_connect('button_press_event', onclick)
 
@@ -75,14 +75,16 @@ class Grid_Visualiser():
         self.draw(step, trainbool, images, extent, norm)
 
     def draw(self, step, trainbool, images, extent=None, norm=None):
-        if not extent:
-            extent = [[None for y in range(len(images[0])) ] for x in range(len(images))]
+        # if not extent:
+        #     extent = [[None for y in range(len(images[0])) ] for x in range(len(images))]
 
-        epoch = step / (int(self.num_train / config['train']['batch_size']) + int(self.num_test / config['train']['batch_size']))
+        epoch = step*config['train']['cache_freq'] / (int(self.num_train / config['train']['batch_size']) + int(self.num_test / config['train']['batch_size']))
 
         kind = self.trainlabel[trainbool]
         print(step, kind, trainbool, epoch)
         self.fig.suptitle(f'Type: {kind}    |     step: {step}/{self.numsteps - 1}     |     epoch: {epoch:.2f}', fontsize=16)
+
+        self.fig.subplots_adjust(top=0.92, left=0.06, bottom=0.06)
 
         if len(self.ims) > 0:
             [im.remove() for im in self.ims]
@@ -92,7 +94,7 @@ class Grid_Visualiser():
         for ir in range(len(images)):
             for ic in range(len(images[0])):
                 self.ims.append(self.axes[ir, ic].imshow(images[ir][ic], norm=norm, aspect='auto',
-                                                         extent=extent[ir][ic]))  # ,
+                                                         extent=extent))  # ,
         # extent=[min(bins[1]),max(bins[1]),
         #        min(bins[0]),max(bins[0])]))
 
@@ -305,10 +307,10 @@ def onetime_metric_streams(start=0, end=10):
     axes = initialize_axes(metric_types+['Loss','Accuracy'])
     metrics = initialize_metrics(metric_types)
 
-    for epoch in range(start, end+1):
-        print(epoch)
+    for step in range(start, end+1):
+        dprint(step)
 
-        cur_seg, pred_seg_res, _, train = alldata[epoch]
+        cur_seg, pred_seg_res, _, train = alldata[step]
         dprint(train)
 
         metrics = update_metrics(cur_seg, pred_seg_res, train, metrics)
@@ -341,7 +343,7 @@ def onetime_metric_streams(start=0, end=10):
         if kind == 'test':
             epochs = np.linspace(0, num/int(num_test/config['train']['batch_size']), num)
 
-        print(kind, end+1, len(epochs), len(metrics[kind][metric_types[0]]))
+        dprint(kind, end+1, len(epochs), len(metrics[kind][metric_types[0]]))
         for ax, metric_key in zip(axes[:-2], metric_types):
             metrics[kind]['lines'].append(ax.plot(epochs, metrics[kind][metric_key], c=metrics[kind]['color'],
                                                   label=kind))
@@ -406,12 +408,12 @@ def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos)
         return ''
 
 
-def continuous_metric_tesseracts():
-    pass
+# def continuous_metric_tesseracts():
+#     pass
+#
+# # def visualise_grid(start, end, step, epoch_format):
 
-# def visualise_grid(start, end, step, epoch_format):
-
-def metric_tesseracts(start=-50, end=-1, jump=20):
+def metric_tesseracts(start=-50, end=-1, jump=1):
     """ Shows the net predictions on the cloud as a series of 2d histograms in 4x4 grid of form
      ___________________________
     |_______|
@@ -424,14 +426,17 @@ def metric_tesseracts(start=-50, end=-1, jump=20):
     """
 
     assert end != 0
+    # assert jump >= config['train']['cache_freq']
     alldata = load_meta()
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
+    dprint(start, end)
 
     visualiser = Grid_Visualiser(4, 4, row_headings= ['True Planet','Missed Planet','True Star','Missed Star'],
-                                 xtitles=['X','Phase','Time','Phase'], ytitles=['Y']*4, numsteps=allsteps)
+                                 xtitles=['X','Phase','Time','Phase'], ytitles=['Y']*4, numsteps=allsteps,
+                                 norm=LogNorm())
 
-    bins = [np.linspace(-2, 2, 50)] * 4
+    bins = [np.linspace(-1, 1, 100)] * 4
     dim_pairs = [[2, 3], [2, 1], [2, 0], [0, 1]]
 
     for step in range(start, end+1, jump):
@@ -456,7 +461,7 @@ def metric_tesseracts(start=-50, end=-1, jump=20):
 
         # visualiser = Grid_Visualiser(4, 4, row_headings=['True Planet', 'Missed Planet', 'True Star', 'Missed Star'],
         #                              xtitles=['X', 'Phase', 'Time', 'Phase'], ytitles=['Y'] * 4, numsteps=allsteps)
-        visualiser.update(step, trainbool, images, norm=LogNorm())
+        visualiser.update(step, trainbool, images, norm=LogNorm(), extent=[-1,1,-1,1])
     plt.show(block=True)
 
 def load_layers(start=-10, end=-1, jump=1, num_inputs=5, interactive=False):
@@ -477,6 +482,8 @@ def load_layers(start=-10, end=-1, jump=1, num_inputs=5, interactive=False):
 
     assert num_inputs <= config['train']['batch_size']
     assert end != 0
+    assert jump >= config['train']['cache_freq']
+
     alldata = load_meta(kind='layers')
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
@@ -519,6 +526,8 @@ def load_pointclouds(start=-10, end=-1, jump=1, ib=0):
     """
 
     assert end != 0
+    assert jump >= config['train']['cache_freq']
+
     alldata = load_meta(kind='layers')
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
@@ -558,7 +567,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
-    # onetime_metric_streams(end = args.epoch)
-    # metric_tesseracts(start = 0, end = -1, jump=50)
-    load_pointclouds(ib = 0, start = 0, end = -1, jump=50)
+    onetime_metric_streams(end = -1)
+    metric_tesseracts(start = 0, end = -1, jump=10)
+    # load_pointclouds(ib = 0, start = 0, end = -1, jump=50)
     load_layers(start = 0, end = -1, jump=50)
