@@ -59,7 +59,9 @@ for astro in ['angles', 'lods', 'contrasts']:
         config['data'][astro] = np.random.uniform(bounds[0], bounds[1], config['data']['num_planets'])
 
 # deduce filenames
-num_test = config['data']['num_planets'] -1 #todo num_test and num_train should be num_planets and both train and test data should include data from both obsfiles
+#todo check this todo...
+#todo num_test and num_train should be num_planets and both train and test data should include data from both obsfiles
+num_test = 1  #config['data']['num_planets'] -1
 # assert num_test.is_integer()
 # num_test = int(num_test)
 num_train = config['data']['num_planets']-1 #- num_test

@@ -26,7 +26,8 @@ class Obsfile():
         ap.contrast = contrast
         ap.companion_xy = lods
         ap.spectra = [ap.spectra]*(len(contrast)+1)
-        self.numobj = config['data']['num_planets']+1
+        # self.numobj = config['data']['num_planets']+1
+        self.numobj = len(contrast)+1
 
         # if not os.path.exists(iop.obs_table):
         #     gpd.run_medis()
@@ -51,8 +52,9 @@ class Obsfile():
                     fields = tel()['fields']
                     object_fields = fields[:, :, :, o][:, :, :, np.newaxis]
                     photons = np.hstack((photons, cam(fields=object_fields, abs_step=tel.chunk_span[ichunk])['photons']))
-                    pass
+
                 tel.chunk_ind = 0
+            tel.fields_exists = True  # this is defined during Telescope.__init__ so redefine here once fields is made
             self.photons.append(photons.T)
 
         # if config['debug']:
@@ -339,20 +341,23 @@ class Data():
 def make_input(config):
     d = Data(config)
 
-    contrast = d.contrasts
-    lod = d.lods
-    photons = Obsfile(name='0', contrast=contrast, lods=lod).photons
-
     outfiles = np.append(config['trainfiles'], config['testfiles'])
     debugs = [False] * config['data']['num_planets']
-    types = ['train', 'test']
+    types = ['train'] * config['data']['num_planets']
+    types[-1] = 'test'
     # debugs[0] = True
-    print([photon.shape for photon in photons])
-    for label, outfile, type in zip(range(config['data']['num_planets']),outfiles, types):
-        print(label, outfile, type)
-        class_photons = [photons[0], photons[label+1]]
+    # for i in range(config['data']['num_planets']):
+    for i, outfile, type in zip(range(config['data']['num_planets']), outfiles, types):
+        contrast = [d.contrasts[i]]
+        lods = [d.lods[i]]
+        photons = Obsfile(f'{i}', contrast, lods).photons
 
-        c = Class(class_photons, outfile, type=type, debug=debugs[label])
+        print([photon.shape for photon in photons])
+        # for label, outfile, type in zip(range(config['data']['num_planets']),outfiles, types):
+        print(i, outfile, type)
+        # class_photons = [photons[0], photons[i+1]]
+
+        c = Class(photons, outfile, type=type, debug=debugs[i])
         c.process_photons()
         c.save_class()
 
