@@ -23,6 +23,11 @@ class Obsfile():
     """ Gets the photon lists from MEDIS """
     def __init__(self, name, contrast, lods, debug=False):
         iop.update_testname(str(name))
+        if contrast == [0.0]:
+            contrast = []
+            ap.companion = False
+        else:
+            ap.companion = True
         ap.contrast = contrast
         ap.companion_xy = lods
         ap.spectra = [ap.spectra]*(len(contrast)+1)
@@ -157,6 +162,7 @@ class Class():
         self.test_frac = config['test_frac']
         self.dimensions = config['dimensions']
         assert self.dimensions in [3,4]
+        self.num_classes = len(photons)  # not config['classes'] because sometimess there are only photons for one class
 
         self.chunked_photons = []
         self.chunked_pids = []
@@ -176,7 +182,7 @@ class Class():
         self.all_photons = np.empty((0, self.dimensions))  # photonlist with both types of photon
         self.all_pids = np.empty((0, 1))  # associated photon labels
 
-        for o in range(config['classes']):
+        for o in range(self.num_classes):
             # dprint((self.all_photons.shape, self.photons[o][:, [0, 2, 3]].shape))
             if self.dimensions == 3:
                 self.all_photons = np.concatenate((self.all_photons, self.photons[o][:, [0, 2, 3]]), axis=0)
@@ -207,7 +213,7 @@ class Class():
 
     def chunk_photons(self):
         # remove residual photons that won't fit into a input cube for the network
-        total_photons = sum([len(self.photons[i]) for i in range(config['classes'])])
+        total_photons = sum([len(self.photons[i]) for i in range(self.num_classes)])
         cut = int(total_photons % self.num_point)
         # dprint(cut)
         rand_cut = random.sample(range(total_photons), cut)
@@ -244,15 +250,15 @@ class Class():
 
         if config['pointnet_version'] == 2:
             if self.type == 'train':
-                self.smpw = [self.chunked_pids.size/(self.chunked_pids == o).sum() for o in range(config['classes'])]
+                self.smpw = [self.chunked_pids.size/(self.chunked_pids == o).sum() for o in range(self.num_classes)]
                 # self.smpw = [1, 3.87]
-                # labelweights, _ = np.histogram(self.chunked_pids, range(config['classes']+1))
+                # labelweights, _ = np.histogram(self.chunked_pids, range(self.num_classes+1))
                 # labelweights = labelweights.astype(np.float32)
                 # labelweights = labelweights/np.sum(labelweights)
                 # self.smpw = 1/np.log(1.2+labelweights)
                 # self.smpw = labelweights
             else:
-                self.smpw = np.ones((config['classes']))
+                self.smpw = np.ones((self.num_classes))
 
         print('weights', self.smpw)
         # if config['debug']:
@@ -290,8 +296,8 @@ class Class():
         plt.show(block=True)
 
     def display_2d_hists(self, ind=None):
-        fig, axes = utils.init_grid(rows=config['classes'], cols=config['dimensions'])
-        # fig, axes = utils.init_grid(rows=config['classes'], cols=4)
+        fig, axes = utils.init_grid(rows=self.num_classes, cols=config['dimensions'])
+        # fig, axes = utils.init_grid(rows=self.num_classes, cols=4)
         fig.suptitle(f'{ind}', fontsize=16)
         plt.tight_layout()
 
@@ -303,7 +309,7 @@ class Class():
 
         coord = 'tpxy'
 
-        for o in range(config['classes']):
+        for o in range(self.num_classes):
             if ind:
                 H, _ = np.histogramdd(self.data[ind, (self.labels[ind] == o)], bins=bins)
             else:
@@ -331,6 +337,8 @@ class Data():
     def observation_params(self):
         # numplanets = config['max_planets']
         contrasts = np.power(np.ones((config['data']['num_planets']))*10, config['data']['contrasts'])
+        invalid_contrast = np.array(config['data']['contrasts']) == -10
+        contrasts[invalid_contrast] = 0
         disp = config['data']['lods']
         angle = config['data']['angles']
         lods = (np.array([np.sin(np.deg2rad(angle)),np.cos(np.deg2rad(angle))])*disp).T
