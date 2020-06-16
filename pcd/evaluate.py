@@ -15,6 +15,7 @@ from matplotlib.colors import LogNorm
 import numpy as np
 import time
 from medis.utils import dprint
+from medis.plot_tools import grid
 from pcd.config.medis_params import mp, ap
 from pcd.config.config import config
 import utils
@@ -563,11 +564,43 @@ def load_pointclouds(start=-10, end=-1, jump=1, ib=0):
         visualiser.update(step, trainbool, images, bounds)
     plt.show(block=True)
 
+def reduced_images():
+    alldata = load_meta()
+    cur_seg, pred_seg_res, cur_data, trainbool = alldata[-1]
+
+    metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
+    true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
+                                               int(np.sum(metrics[2])), int(np.sum(metrics[3])),
+    print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_neg, true_pos + false_pos))
+
+    bins = [np.linspace(-1, 1, 150)] * 4
+
+    # fig = plt.figure()
+    all_photons = np.concatenate((cur_data[metrics[0]],cur_data[metrics[1]], cur_data[metrics[2]], cur_data[metrics[3]]), axis=0)
+    all_tess, edges = np.histogramdd(all_photons, bins=bins)
+
+    star_photons = np.concatenate((cur_data[metrics[1]], cur_data[metrics[3]]), axis=0)
+    star_tess, edges = np.histogramdd(star_photons, bins=bins)
+
+    planet_photons = np.concatenate((cur_data[metrics[0]], cur_data[metrics[2]]), axis=0)
+    planet_tess, edges = np.histogramdd(planet_photons, bins=bins)
+
+
+    grid([np.sum(all_tess, axis=(0,1)), np.sum(star_tess, axis=(0,1)), np.sum(planet_tess, axis=(0,1))])
+
+    from vip_hci import pca
+    # frame = pca.pca(cube, angle_list=np.zeros((cube.shape[1])), scale_list=self.scale_list,
+    #                 mask_center_px=None, adimsdi='double', ncomp=self.ncomp, ncomp2=None,
+    #                 collapse=self.collapse)
+
+    pass
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
     onetime_metric_streams(end = -1)
-    metric_tesseracts(start = 0, end = -1, jump=10)
+    metric_tesseracts(start = 0, end = -1, jump=1)
+    reduced_images()
     # load_pointclouds(ib = 0, start = 0, end = -1, jump=50)
     load_layers(start = 0, end = -1, jump=50)
