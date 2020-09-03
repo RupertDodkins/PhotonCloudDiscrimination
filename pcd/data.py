@@ -1,4 +1,5 @@
 import os
+import shutil
 import numpy as np
 import matplotlib.pylab as plt
 from mpl_toolkits.mplot3d import Axes3D  # don't listen to pycharm this is necessary
@@ -21,8 +22,9 @@ import utils
 
 class Obsfile():
     """ Gets the photon lists from MEDIS """
-    def __init__(self, name, contrast, lods, debug=False):
+    def __init__(self, name, contrast, lods, spectra, debug=False):
         iop.update_testname(str(name))
+        self.medis_cache = iop.testdir
         if contrast == [0.0]:
             contrast = []
             ap.companion = False
@@ -30,8 +32,8 @@ class Obsfile():
             ap.companion = True
         ap.contrast = contrast
         ap.companion_xy = lods
-        ap.spectra = [ap.spectra]*(len(contrast)+1)
-        # self.numobj = config['data']['num_planets']+1
+        ap.spectra = spectra
+        # self.numobj = config['data']['num_indata']+1
         self.numobj = len(contrast)+1
 
         # if not os.path.exists(iop.obs_table):
@@ -58,14 +60,31 @@ class Obsfile():
                     object_fields = fields[:, :, :, o][:, :, :, np.newaxis]
                     photons = np.hstack((photons, cam(fields=object_fields, abs_step=tel.chunk_span[ichunk])['photons']))
 
-                tel.chunk_ind = 0
+            tel.chunk_ind = 0
             tel.fields_exists = True  # this is defined during Telescope.__init__ so redefine here once fields is made
+
+            if config['data']['time_diff']:
+                stem = cam.arange_into_stem(photons.T, (cam.array_size[1], cam.array_size[0]))
+                stem = list(map(list, zip(*stem)))
+                stem = cam.calc_arrival_diff(stem)
+                photons = cam.ungroup(stem)
+                # photons = photons[[0, 1, 3, 2]]
+
+            if config['data']['trans_polar']:
+                photons[2] -= cam.array_size[1]/2
+                photons[3] -= cam.array_size[0]/2
+                r = np.sqrt(photons[2]**2 + photons[3]**2)
+                t =  np.arctan2(photons[3],photons[2])
+                photons[-2:] = np.array([r,t])
+
             self.photons.append(photons.T)
 
+
         # if config['debug']:
+        # debug = False
         if debug:
-        # #     # self.display_raw_image()
-        # #     # self.display_raw_cloud()
+            # #     # self.display_raw_image()
+            # #     # self.display_raw_cloud()
             self.display_2d_hists()
             # self.plot_stats()
         dprint(len(self.photons))
@@ -106,11 +125,15 @@ class Obsfile():
         bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
                 range(mp.array_size[1])]
 
+        if config['data']['trans_polar']:
+            bins[2] = np.linspace(0, mp.array_size[0]/2, mp.array_size[0])
+            bins[3] = np.linspace(-np.pi,np.pi, mp.array_size[1])
+
         coord = 'tpxy'
         for o in range(self.numobj):
             H, _ = np.histogramdd(self.photons[o], bins=bins)
 
-            for p, pair in enumerate([['x','y'], ['x','p'], ['x','t'], ['p','t']]):
+            for p, pair in enumerate([['y','x'], ['x','p'], ['x','t'], ['p','t']]):
                 inds = coord.find(pair[0]), coord.find(pair[1])
                 sumaxis = tuple(np.delete(range(len(coord)), inds))
                 image = np.sum(H, axis=sumaxis)
@@ -152,17 +175,20 @@ class Obsfile():
 
 class Class():
     """ Creates the input data in the NN input format """
-    def __init__(self, photons, outfile, type='train', debug=False):
+    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None):
         self.photons = photons #[self.normalise_photons(photons[o]) for o in range(config['classes'])]
         self.outfile = outfile
-        self.type = type
+        self.prefix = outfile.split('.')[0]
+        self.train_type = train_type
+        self.aug_ind = aug_ind
         self.debug = debug
+        self.rm_input = rm_input
 
         self.num_point = config['num_point']
-        self.test_frac = config['test_frac']
+        # self.test_frac = config['data']['test_frac']
         self.dimensions = config['dimensions']
         assert self.dimensions in [3,4]
-        self.num_classes = len(photons)  # not config['classes'] because sometimess there are only photons for one class
+        self.num_classes = len(photons)  # not config['classes'] because sometimes there are only photons for one class
 
         self.chunked_photons = []
         self.chunked_pids = []
@@ -204,6 +230,9 @@ class Class():
                                mp.wavecal_coeffs[0] * ap.wvl_range + mp.wavecal_coeffs[1],  # [-116, 0], ap.wvl_range = np.array([800, 1500]), mp.wavecal_coeffs = [1. / 6, -250]
                                [0, mp.array_size[0]],
                                [0, mp.array_size[1]]])
+            if config['data']['trans_polar']:
+                bounds[2] = [0, mp.array_size[0]/2]
+                bounds[3] = [-np.pi, np.pi]
             self.all_photons -= np.mean(bounds, axis=1)
             self.all_photons /= np.max(self.all_photons, axis=0)
         else:
@@ -221,7 +250,7 @@ class Class():
         red_pids = np.delete(self.all_pids, rand_cut, axis=0)
 
         # raster the list so that every self.num_point start a new input cube
-        self.chunked_photons = red_photons.reshape(-1, self.num_point, self.dimensions, order='F')
+        self.chunked_photons = red_photons.reshape(-1, self.num_point, self.dimensions, order='F')  # selects them throughout the obss
         # plt.plot(self.chunked_photons[:, 0, 0])
         # plt.figure()
         # plt.plot(self.chunked_photons[0, :, 0])
@@ -229,12 +258,15 @@ class Class():
         self.chunked_pids = red_pids.reshape(-1, self.num_point, 1, order='F')
 
     def save_class(self):
-        if self.type == 'test':
-            num_test = int(len(self.chunked_pids)*config['test_frac']/(1-config['test_frac']))
-            print('saveclass', len(self.chunked_pids), config['test_frac']/(1-config['test_frac']), num_test)
-            remove_inds = random.sample(range(len(self.chunked_pids)), num_test)
-            self.chunked_photons = self.chunked_photons[remove_inds]
-            self.chunked_pids = self.chunked_pids[remove_inds]
+        # if self.type == 'test':
+        #     num_test = int(len(self.chunked_pids)*config['test_frac']/(1-config['test_frac']))
+        #     print('saveclass', len(self.chunked_pids), config['test_frac']/(1-config['test_frac']), num_test)
+        #     remove_inds = random.sample(range(len(self.chunked_pids)), num_test)
+        #     self.chunked_photons = self.chunked_photons[remove_inds]
+        #     self.chunked_pids = self.chunked_pids[remove_inds]
+
+        if self.aug_ind:
+            self.aug_input()
 
         num_input = len(self.chunked_photons)  # 16
 
@@ -249,19 +281,20 @@ class Class():
             self.labels = np.array([self.chunked_pids[o, order] for o, order in enumerate(reorder)])[:, :, 0]
 
         if config['pointnet_version'] == 2:
-            if self.type == 'train':
+            if self.train_type == 'train':
                 self.smpw = [self.chunked_pids.size/(self.chunked_pids == o).sum() for o in range(self.num_classes)]
-                # self.smpw = [1, 3.87]
+
                 # labelweights, _ = np.histogram(self.chunked_pids, range(self.num_classes+1))
                 # labelweights = labelweights.astype(np.float32)
                 # labelweights = labelweights/np.sum(labelweights)
                 # self.smpw = 1/np.log(1.2+labelweights)
                 # self.smpw = labelweights
+                dprint(self.smpw)
             else:
                 self.smpw = np.ones((self.num_classes))
 
-        print('weights', self.smpw)
-        # if config['debug']:
+        self.data = self.data[:, :, [1, 3, 0, 2]]
+
         if self.debug:
             # self.display_chunk_cloud()
             self.display_2d_hists()
@@ -274,11 +307,32 @@ class Class():
                 hf.create_dataset('pid', data=self.pids)
             if config['pointnet_version'] == 2:
                 hf.create_dataset('smpw', data=self.smpw)
+
+        if self.rm_input:
+            try:
+                # shutil.rmtree(self.rm_input)
+                dprint(self.rm_input)
+            except OSError as e:
+                print("Error: %s - %s." % (e.filename, e.strerror))
+
         # with h5py.File(self.testfile, 'w') as hf:
         #     hf.create_dataset('data', data=self.data[-int(self.test_frac * num_input):])
         #     hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
         #     if config['task'] == 'part_seg':
         #         hf.create_dataset('pid', data=self.pids[-int(self.test_frac * num_input):])
+
+    def aug_input(self):
+        rot_rate = 360. / (config['data']['aug_ratio'] + 1)
+        angle = np.deg2rad(rot_rate * self.aug_ind)
+        rot_matrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+        # rot_matrix = np.array(rot_matrix)[:,:,np.newaxis, np.newaxis]
+
+        rotated_photons = self.chunked_photons * 1
+        for i in range(len(self.chunked_photons)):
+            # self.chunked_photons[i,(self.chunked_pids[i,:,0] == 1)] = np.dot(rot_matrix, self.chunked_photons[i,(self.chunked_pids[i,:,0] == 1)])
+            rotated_photons[i,:,[2,3]] = np.dot(rot_matrix, self.chunked_photons[i,:,[2,3]])
+            self.chunked_photons[i, (self.chunked_pids[i, :, 0] == 1)] = rotated_photons[i, (self.chunked_pids[i, :, 0] == 1)]
+        dprint(rot_rate, self.aug_ind, angle, rot_matrix)
 
     def display_chunk_cloud(self, downsamp=10):
         fig = plt.figure()
@@ -307,7 +361,8 @@ class Class():
         else:
             bins = [np.linspace(-1,1,50), np.linspace(-1,1,50), np.linspace(-1,1,150), np.linspace(-1,1,150)]
 
-        coord = 'tpxy'
+        # coord = 'tpxy'
+        coord = 'pytx'
 
         for o in range(self.num_classes):
             if ind:
@@ -330,44 +385,63 @@ class Class():
 class Data():
     """ Infers the sequence of parameters to pass to each Obsfile """
     def __init__(self, config=None):
-        self.numobj = config['data']['num_planets']+1
+        self.numobj = config['data']['num_indata']+1
         self.contrasts, self.lods = self.observation_params()
         # self.trainfiles, self.testfiles = self.get_filenames()
 
     def observation_params(self):
         # numplanets = config['max_planets']
-        contrasts = np.power(np.ones((config['data']['num_planets']))*10, config['data']['contrasts'])
-        invalid_contrast = np.array(config['data']['contrasts']) == -10
-        contrasts[invalid_contrast] = 0
+        contrasts = np.power(np.ones((config['data']['num_indata']))*10, config['data']['contrasts'])
+        if config['data']['null_frac'] > 0:
+            contrasts[::int(1 / config['data']['null_frac'])] = 0
+        # invalid_contrast = np.array(config['data']['contrasts']) == -10
+        # contrasts[invalid_contrast] = 0
         disp = config['data']['lods']
         angle = config['data']['angles']
         lods = (np.array([np.sin(np.deg2rad(angle)),np.cos(np.deg2rad(angle))])*disp).T
 
         return contrasts, lods
 
-# from random import sample
 def make_input(config):
     d = Data(config)
 
     outfiles = np.append(config['trainfiles'], config['testfiles'])
-    debugs = [False] * config['data']['num_planets']
-    types = ['train'] * config['data']['num_planets']
-    types[-1] = 'test'
+
+    debugs = [True] * config['data']['num_indata']
+    train_types = ['train'] * config['data']['num_indata']
+    num_test = config['data']['num_indata'] * config['data']['test_frac']
+    num_test = int(num_test)
+    if num_test > 0:
+        train_types[-num_test:] = ['test']*num_test
+
+    aug_inds = np.arange(config['data']['num_indata'])
+    aug_inds[::config['data']['aug_ratio']+1] = 0  # eg [0,1,2,3,0,5,6,7,0,9,10,11,...] when aug_ratio == 3
+
     # debugs[0] = True
-    # for i in range(config['data']['num_planets']):
-    for i, outfile, type in zip(range(config['data']['num_planets']), outfiles, types):
-        contrast = [d.contrasts[i]]
-        lods = [d.lods[i]]
-        photons = Obsfile(f'{i}', contrast, lods).photons
+    # for i in range(config['data']['num_indata']):
+    print('train_types', train_types)
+    for i, outfile, train_type, aug_ind in zip(range(config['data']['num_indata']), outfiles, train_types, aug_inds):
+        dprint(d.contrasts[i], d.lods[i], config['data']['planet_spectra'][i], outfile, train_type, aug_ind)
+        # if not os.path.exists(outfile):
+        if not aug_ind:  # any number > 0
+            contrast = [d.contrasts[i]]
+            lods = [d.lods[i]]
+            spectra = [config['data']['star_spectra'], config['data']['planet_spectra'][i]]
+            obs = Obsfile(f'{i}', contrast, lods, spectra)
+            photons = obs.photons
 
         print([photon.shape for photon in photons])
-        # for label, outfile, type in zip(range(config['data']['num_planets']),outfiles, types):
+        # for label, outfile, type in zip(range(config['data']['num_indata']),outfiles, train_types):
         print(i, outfile, type)
         # class_photons = [photons[0], photons[i+1]]
 
-        c = Class(photons, outfile, type=type, debug=debugs[i])
+        c = Class(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
         c.process_photons()
         c.save_class()
+        # if config['data']['num_augs'] > 0:
+        #     for aug in range(config['data']['num_augs']):
+        #         c.aug_input(aug)
+        #         c.save_class()
 
 if __name__ == "__main__":
     make_input(config)

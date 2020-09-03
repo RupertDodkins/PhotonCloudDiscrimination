@@ -15,7 +15,6 @@ from matplotlib.colors import LogNorm
 import numpy as np
 import time
 from medis.utils import dprint
-from medis.plot_tools import grid
 from pcd.config.medis_params import mp, ap
 from pcd.config.config import config
 import utils
@@ -29,7 +28,7 @@ class Grid_Visualiser():
         # set axes
         plt.ion()
         plt.show(block=True)
-        self.fig, self.axes = utils.init_grid(rows=rows, cols=cols, figsize=(12, 9))
+        self.fig, self.axes = utils.init_grid(rows=rows, cols=cols, figsize=(12, 10))
 
         for i in range(rows):
             if row_headings:
@@ -66,18 +65,20 @@ class Grid_Visualiser():
 
         cid = self.fig.canvas.mpl_connect('button_press_event', onclick)
 
-    def update(self, step, trainbool, images, extent=None, norm=None):
+    def update(self, step, trainbool, images, extent=None, norm=None, vmax=None):
         self.steps.append(step)
         self.trainbools.append(trainbool)
         self.images.append(images)
 
         self.it += 1
 
-        self.draw(step, trainbool, images, extent, norm)
+        self.draw(step, trainbool, images, extent, norm, vmax)
 
-    def draw(self, step, trainbool, images, extent=None, norm=None):
+    def draw(self, step, trainbool, images, extent=None, norm=None, vmax=None):
         # if not extent:
         #     extent = [[None for y in range(len(images[0])) ] for x in range(len(images))]
+        if not vmax:
+            vmax = [None]*len(images)
 
         epoch = step*config['train']['cache_freq'] / (int(self.num_train / config['train']['batch_size']) + int(self.num_test / config['train']['batch_size']))
 
@@ -95,33 +96,35 @@ class Grid_Visualiser():
         for ir in range(len(images)):
             for ic in range(len(images[0])):
                 self.ims.append(self.axes[ir, ic].imshow(images[ir][ic], norm=norm, aspect='auto',
-                                                         extent=extent))  # ,
+                                                         extent=extent, vmax=vmax[ir]))  # ,
         # extent=[min(bins[1]),max(bins[1]),
         #        min(bins[0]),max(bins[0])]))
 
         self.fig.canvas.draw()
-
         # input("Press n to create a new figure or anything else to continue using this one")
 
     # plt.show(block=True)
 
 
-def load_meta(kind='outputs'):
+def load_meta(kind='outputs', amount=-1):
     alldata = []
     with open(config['train'][kind], 'rb') as handle:
         while True:
             try:
-                alldata.append(pickle.load(handle))
+                if amount == 1:
+                    alldata = [pickle.load(handle)]
+                else:
+                    alldata.append(pickle.load(handle))
             except EOFError:
                 break
 
     return alldata
 
 def get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True):
-    true_neg = np.logical_and(cur_seg == 0, pred_seg_res == 0)
-    true_pos = np.logical_and(cur_seg == 1, pred_seg_res == 1)
-    false_neg = np.logical_and(cur_seg == 1, pred_seg_res == 0)
-    false_pos = np.logical_and(cur_seg == 0, pred_seg_res == 1)
+    true_neg = np.logical_and(cur_seg == 0, np.round(pred_seg_res) == 0)  # round just in case the pred_val is in mean mode
+    true_pos = np.logical_and(cur_seg == 1, np.round(pred_seg_res) == 1)
+    false_neg = np.logical_and(cur_seg == 1, np.round(pred_seg_res) == 0)
+    false_pos = np.logical_and(cur_seg == 0, np.round(pred_seg_res) == 1)
     if include_true_neg:
         metrics = [true_pos, false_neg, false_pos, true_neg]
         scores = np.array([np.sum(true_pos), np.sum(false_pos)]) / np.sum(cur_seg == 1)
@@ -264,7 +267,8 @@ def update_metrics(cur_seg, pred_seg_res, train, metrics):
     true_pos, false_neg, false_pos, true_neg = np.float64(np.sum(metrics_vol[0])), np.float64(np.sum(metrics_vol[1])), \
                                                np.float64(np.sum(metrics_vol[2])), np.float64(np.sum(metrics_vol[3])),
 
-    tot_neg, tot_pos = true_neg + false_neg, true_pos + false_pos
+    # tot_neg, tot_pos = true_neg + false_neg, true_pos + false_pos
+    tot_neg, tot_pos = true_neg + false_pos, true_pos + false_neg
     dprint(tot_neg, tot_pos, train)
 
     kind = 'train' if train else 'test'
@@ -273,7 +277,7 @@ def update_metrics(cur_seg, pred_seg_res, train, metrics):
     metrics[kind]['False Positive'] = np.append(metrics[kind]['False Positive'], false_pos / tot_pos)
     metrics[kind]['True Negative'] = np.append(metrics[kind]['True Negative'], true_neg / tot_neg)
     metrics[kind]['Recall'] = np.append(metrics[kind]['Recall'], true_pos / (true_pos+false_neg))
-    metrics[kind]['Precision'] = np.append(metrics[kind]['Precision'], true_pos / tot_pos)
+    metrics[kind]['Precision'] = np.append(metrics[kind]['Precision'], true_pos / (true_pos + false_pos))
 
     return metrics
 
@@ -296,7 +300,8 @@ def onetime_metric_streams(start=0, end=10):
     :return:
     """
 
-    import tensorflow as tf
+    import tensorflow.compat.v1 as tf
+    tf.disable_v2_behavior()
     import glob
 
     num_train, num_test = num_input()
@@ -326,7 +331,9 @@ def onetime_metric_streams(start=0, end=10):
 
         # get accuracies and losses
         dir = f"{config['working_dir']}/{kind}"
-        lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-1]
+        # lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-1]
+        lastfile = sorted(glob.glob(f'{dir}/*.glados*'), key=os.path.getmtime)[-1]
+        print(dir, lastfile)
         # lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-2]
         print(lastfile)
         losses, accuracies = [], []
@@ -340,17 +347,21 @@ def onetime_metric_streams(start=0, end=10):
         # get the number of x values
         num = len(metrics[kind][metric_types[0]])
         if kind == 'train':
-            epochs = np.linspace(0, num/int(num_train/config['train']['batch_size']), num)
+            epochs = np.linspace(0, num * config['train']['cache_freq']/int(num_train/config['train']['batch_size']), num)
         if kind == 'test':
-            epochs = np.linspace(0, num/int(num_test/config['train']['batch_size']), num)
+            epochs = np.linspace(0, num * config['train']['cache_freq']/int(num_test/config['train']['batch_size']), num)
 
-        dprint(kind, end+1, len(epochs), len(metrics[kind][metric_types[0]]))
+        dprint(kind, end+1, len(epochs), len(metrics[kind][metric_types[0]]), losses)
         for ax, metric_key in zip(axes[:-2], metric_types):
             metrics[kind]['lines'].append(ax.plot(epochs, metrics[kind][metric_key], c=metrics[kind]['color'],
                                                   label=kind))
 
-        axes[-2].plot(epochs, losses, c=metrics[kind]['color'], label=kind)
-        axes[-1].plot(epochs, accuracies, c=metrics[kind]['color'], label=kind)
+        # sometimes losses
+        try:
+            axes[-2].plot(epochs, losses[:len(epochs)], c=metrics[kind]['color'], label=kind)
+            axes[-1].plot(epochs, accuracies[:len(epochs)], c=metrics[kind]['color'], label=kind)
+        except ValueError:
+            print(f'epochs and losses wrong length ?! {len(epochs)}, {len(losses)} respectively')
     axes[2].legend()
 
     plt.show(block=True)
@@ -394,19 +405,28 @@ def get_range_inds(start, end, allsteps):
     return start, end
 
 def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos):
-    try:
+    print('tot_pos', tot_pos, tot_pos==0.0)
+    if tot_pos == 0.0:
+        conf = ('      +------+\n'
+                '     1| %.2f |\n'
+                'Pred -+------+\n'
+                '     0| %.2f |\n'
+                '      +------+\n'
+                '         0    \n'
+                '           True' % (false_pos / tot_neg,
+                                     true_neg / tot_neg))
+
+    else:
         conf = ('      +------+------+\n'
                 '     1| %.2f | %.2f |\n'
                 'Pred -+------+------+\n'
                 '     0| %.2f | %.2f |\n'
                 '      +------+------+\n'
                 '         0   |  1\n'
-                '           True' % (false_pos/tot_pos, true_pos/tot_pos,
-                                     true_neg/tot_neg, false_neg/tot_neg))
+                '           True' % (false_pos / tot_neg, true_pos / tot_pos,
+                                     true_neg / tot_neg, false_neg / tot_pos))
+    return conf
 
-        return conf
-    except ZeroDivisionError:
-        return ''
 
 
 # def continuous_metric_tesseracts():
@@ -414,7 +434,39 @@ def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos)
 #
 # # def visualise_grid(start, end, step, epoch_format):
 
-def metric_tesseracts(start=-50, end=-1, jump=1):
+def check_inputs(ind=None):
+    alldata = load_meta()
+    allsteps = len(alldata)
+
+    # fig, axes = utils.init_grid(rows=config['classes'], cols=config['dimensions'])
+    # # fig, axes = utils.init_grid(rows=self.num_classes, cols=4)
+    # fig.suptitle(f'{ind}', fontsize=16)
+    # plt.tight_layout()
+    #
+    # bins = [np.linspace(-1, 1, 50), np.linspace(-1, 1, 50), np.linspace(-1, 1, 150), np.linspace(-1, 1, 150)]
+    #
+    # # coord = 'tpxy'
+    # coord = 'pytx'
+    #
+    # for o in range(config['classes']):
+    #     if ind:
+    #         H, _ = np.histogramdd(self.data[ind, (self.labels[ind] == o)], bins=bins)
+    #     else:
+    #         H, _ = np.histogramdd(self.data[self.labels == o], bins=bins)
+    #
+    #     for p, pair in enumerate([['x', 'y'], ['x', 'p'], ['x', 't'], ['p', 't']]):
+    #         inds = coord.find(pair[0]), coord.find(pair[1])
+    #         sumaxis = tuple(np.delete(range(len(coord)), inds))
+    #         image = np.sum(H, axis=sumaxis)
+    #         if pair in [['x', 'p'], ['x', 't']]:
+    #             image = image.T
+    #             inds = inds[1], inds[0]
+    #         axes[o, p].imshow(image, norm=LogNorm(), aspect='auto',
+    #                           extent=[bins[inds[0]][0], bins[inds[0]][-1], bins[inds[1]][0], bins[inds[1]][-1]])
+    #
+    # plt.show(block=True)
+
+def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     """ Shows the net predictions on the cloud as a series of 2d histograms in 4x4 grid of form
      ___________________________
     |_______|
@@ -438,7 +490,10 @@ def metric_tesseracts(start=-50, end=-1, jump=1):
                                  norm=LogNorm())
 
     bins = [np.linspace(-1, 1, 100)] * 4
-    dim_pairs = [[2, 3], [2, 1], [2, 0], [0, 1]]
+    # dim_pairs = [[2, 3], [2, 1], [2, 0], [0, 1]]
+    # dim_pairs = [[3, 1], [3, 0], [3, 2], [2, 0]]
+    dim_pairs = [[3, 1], [3, 2], [3, 0], [1, 2]]
+    # dim_pairs = np.array(dim_pairs)[[1, 3, 0, 2]]
 
     for step in range(start, end+1, jump):
         cur_seg, pred_seg_res, cur_data, trainbool = alldata[step]
@@ -447,13 +502,23 @@ def metric_tesseracts(start=-50, end=-1, jump=1):
         true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
                                                    int(np.sum(metrics[2])), int(np.sum(metrics[3])),
 
-        print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg+false_neg, true_pos+false_pos))
+        print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
+        print('true_pos: %f' % (true_pos))
+        print('true_neg: %f' % (true_neg))
+        print('false_pos: %f' % (false_pos))
+        print('false_neg: %f' % (false_neg))
+        try:  # sometimes there are no true_positives
+            print('Recall: %f' % (true_pos / (true_pos + false_neg)))
+            print('Precision: %f' % (true_pos / (true_pos + false_pos)))
+        except ZeroDivisionError:
+            pass
 
         metrics[2], metrics[3] = metrics[3], metrics[2]
 
         images = [[]]*len(metrics)
         for row, metric in enumerate(metrics):
             red_data = cur_data[metric]
+            red_data = trans_p2c(red_data)
 
             images[row] = [[]]*len(dim_pairs)
             for ib, dim_pair in enumerate(dim_pairs):
@@ -462,10 +527,70 @@ def metric_tesseracts(start=-50, end=-1, jump=1):
 
         # visualiser = Grid_Visualiser(4, 4, row_headings=['True Planet', 'Missed Planet', 'True Star', 'Missed Star'],
         #                              xtitles=['X', 'Phase', 'Time', 'Phase'], ytitles=['Y'] * 4, numsteps=allsteps)
-        visualiser.update(step, trainbool, images, norm=LogNorm(), extent=[-1,1,-1,1])
+        visualiser.update(step, trainbool, images, norm=None, extent=[-1,1,-1,1])
     plt.show(block=True)
 
-def load_layers(start=-10, end=-1, jump=1, num_inputs=5, interactive=False):
+def investigate_layer(start=-10, end=-1, jump=1):
+    """ Shows the net layers of the cloud as a series of 2d histograms in num_inputsx4 grid of form
+     __________________________________
+    |_____________|____batch_index____|
+    |____layer____|_0_|_1_|_2_|...|_n_|
+    |__pred_star__|___|___|___|...|___|
+    |__pred_comp__|___|___|___|...|___|
+    |_total_layer_|___|___|___|...|___|
+    |__pred_star__|___|___|___|...|___|
+    |__pred_comp__|___|___|___|...|___|
+
+    """
+
+    assert end != 0
+    # assert jump >= config['train']['cache_freq']
+
+    all_layers = load_meta(kind='layers')
+    all_outputs = load_meta(kind='outputs')
+
+    allsteps = len(all_layers)
+    start, end = get_range_inds(start, end, allsteps)
+
+    visualiser = Grid_Visualiser(rows=6, cols=config['train']['batch_size'], numsteps=allsteps,
+                                 row_headings= ['pred_star', 'pred_comp', 'correct planet', 'missed planet',
+                                                'missed star', 'correct star']
+                                 )
+    bins = np.linspace(-1, 1, 150)
+
+    for l in range(9):
+        for step in range(start, end + 1, jump):
+            layer, trainbool = all_layers[step]
+            layer = layer[l]
+            batch_labels, pred_val, batch_data, _ = all_outputs[step]
+
+            # images = [[[]] * config['train']['batch_size']]*5
+
+            images = [[]] * 6
+            for i in range(6):
+                images[i] = [[]] * config['train']['batch_size']
+
+            for ic in range(config['train']['batch_size']):
+                x, y = batch_data[ic, :, :2][~(np.ones(2) * pred_val[ic, :, None]).astype(bool)].reshape(-1,2).T
+                images[0][ic], _, _ = np.histogram2d(x,y, bins=bins)
+
+                x, y = batch_data[ic, :, :2][(np.ones(2) * pred_val[ic, :, None]).astype(bool)].reshape(-1,2).T
+                images[1][ic], _, _ = np.histogram2d(x,y, bins=bins)
+
+                metrics = get_metric_distributions(batch_labels[ic], pred_val[ic], include_true_neg=True)
+
+                if layer.shape[-1] != 4:
+                    for ii, im in enumerate(range(2,6)):
+                        images[im][ic] = layer[ic] * (np.ones(layer.shape[-1])*metrics[ii][:,None])
+                else:
+                    for ii, im in enumerate(range(2, 6)):
+                        x, y = layer[ic,:,:2][(np.ones(2)*metrics[ii][:,None]).astype(bool)].reshape(-1,2).T
+                        images[im][ic] = np.histogram2d(x, y, bins=150)[0]
+
+            visualiser.update(step, trainbool, images)#, vmax=[None, None, 1, 1, 1, 1])
+    plt.show(block=True)
+
+def load_layers(start=-10, end=-1, jump=1, num_inputs=3, interactive=False):
     """ Shows the net layers of the cloud as a series of 2d histograms in num_inputsx4 grid of form
      ___________________________
     |_______|____batch_index____|
@@ -483,15 +608,16 @@ def load_layers(start=-10, end=-1, jump=1, num_inputs=5, interactive=False):
 
     assert num_inputs <= config['train']['batch_size']
     assert end != 0
-    assert jump >= config['train']['cache_freq']
+    # assert jump >= config['train']['cache_freq']
 
     alldata = load_meta(kind='layers')
+
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
     num_layers = len(alldata[0][0])
 
-    visualiser = Grid_Visualiser(rows=num_layers, cols=num_inputs, numsteps=allsteps,
-                                 row_headings= ['Input','Layer 1','Layer 2','Layer 3','Layer 4'])
+    visualiser = Grid_Visualiser(rows=num_layers, cols=num_inputs, numsteps=allsteps,)
+                                 #row_headings= ['Input','Layer 1','Layer 2','Layer 3','Layer 4'])
 
     for step in range(start, end + 1, jump):
         pointclouds, trainbool = alldata[step]
@@ -527,22 +653,30 @@ def load_pointclouds(start=-10, end=-1, jump=1, ib=0):
     """
 
     assert end != 0
-    assert jump >= config['train']['cache_freq']
+    # assert jump >= config['train']['cache_freq']
 
     alldata = load_meta(kind='layers')
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
+    # if np.array([len(pc.shape)==3 for pc in alldata[0][0]]).all():
     num_layers = len(alldata[0][0])
+    # else:
+
     print([pointcloud.shape[-1]==4 for pointcloud in alldata[0][0]])
     if not np.all([pointcloud.shape[-1]==4 for pointcloud in alldata[0][0]]):
         print('Skipping point clouds format display')
         return
-    bins = np.linspace(-3,3,100)
-    dim_pairs = [[2, 3], [2, 1], [2, 0], [0, 1]]
+    # bins = np.linspace(-3,3,100)
+    # bins = [np.linspace(-1, 1, 150)] * 4
+    bins = [150]*4
+    # dim_pairs = [[2, 3], [2, 1], [2, 0], [0, 1]]
+    dim_pairs = [[3, 1], [3, 2], [3, 0], [1, 2]]
     num_inputs = len(dim_pairs)
 
     visualiser = Grid_Visualiser(rows=num_layers, cols=num_inputs, numsteps=allsteps,
-                                 row_headings= ['Input','Layer 1','Layer 2','Layer 3','Layer 4'])
+                                 # row_headings= ['Input','Aug','Gather','Group0','Group1','Group2'])
+                                row_headings=None
+                                 )
 
     for step in range(start, end + 1, jump):
         pointclouds, trainbool = alldata[step]
@@ -555,52 +689,34 @@ def load_pointclouds(start=-10, end=-1, jump=1, ib=0):
             images[row] = [[]] * num_inputs
             bounds[row] = [[]] * num_inputs
             for ic , dim_pair in enumerate(dim_pairs):
-                H, b1, b2 = np.histogram2d(pointcloud[ib,:,dim_pair[0]],pointcloud[ib,:,dim_pair[1]])#, bins=50)#np.linspace(-3,3,100/(ic+1)))#, bins=bins)
+                H, b1, b2 = np.histogram2d(pointcloud[ib,:,dim_pair[0]],pointcloud[ib,:,dim_pair[1]], bins[ic])#, bins=50)#np.linspace(-3,3,100/(ic+1)))#, bins=bins)
                 # ims.append(axes[row, ic].imshow(H, norm=LogNorm(), aspect='auto', extent=[min(b1),max(b1),min(b2),max(b2)]))
                 extent=[min(b1),max(b1),min(b2),max(b2)]
 
                 images[row][ic] = H
                 bounds[row][ic] = extent
-        visualiser.update(step, trainbool, images, bounds)
+        visualiser.update(step, trainbool, images, extent=[-1,1,-1,1], norm=LogNorm())
     plt.show(block=True)
 
-def reduced_images():
-    alldata = load_meta()
-    cur_seg, pred_seg_res, cur_data, trainbool = alldata[-1]
+def trans_p2c(photons):
+    # photons[2] += 1
+    # photons[2] *= mp.array_size[1]/2
+    photons[:, 2] *= np.pi
 
-    metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
-    true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
-                                               int(np.sum(metrics[2])), int(np.sum(metrics[3])),
-    print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_neg, true_pos + false_pos))
+    x = photons[:, 3] * np.cos(photons[:, 2])
+    y = photons[:, 3] * np.sin(photons[:, 2])
 
-    bins = [np.linspace(-1, 1, 150)] * 4
+    # x += mp.array_size[1]/2
+    # y += mp.array_size[0]/2
 
-    # fig = plt.figure()
-    all_photons = np.concatenate((cur_data[metrics[0]],cur_data[metrics[1]], cur_data[metrics[2]], cur_data[metrics[3]]), axis=0)
-    all_tess, edges = np.histogramdd(all_photons, bins=bins)
+    photons[:, 2], photons[:, 3] = x, y
 
-    star_photons = np.concatenate((cur_data[metrics[1]], cur_data[metrics[3]]), axis=0)
-    star_tess, edges = np.histogramdd(star_photons, bins=bins)
-
-    planet_photons = np.concatenate((cur_data[metrics[0]], cur_data[metrics[2]]), axis=0)
-    planet_tess, edges = np.histogramdd(planet_photons, bins=bins)
-
-
-    grid([np.sum(all_tess, axis=(0,1)), np.sum(star_tess, axis=(0,1)), np.sum(planet_tess, axis=(0,1))])
-
-    from vip_hci import pca
-    # frame = pca.pca(cube, angle_list=np.zeros((cube.shape[1])), scale_list=self.scale_list,
-    #                 mask_center_px=None, adimsdi='double', ncomp=self.ncomp, ncomp2=None,
-    #                 collapse=self.collapse)
-
-    pass
+    return photons
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
-    onetime_metric_streams(end = -1)
-    metric_tesseracts(start = 0, end = -1, jump=1)
-    reduced_images()
-    # load_pointclouds(ib = 0, start = 0, end = -1, jump=50)
-    load_layers(start = 0, end = -1, jump=50)
+    # onetime_metric_streams(end = -1)
+    metric_tesseracts(start = 0, end = -2, jump=1)
+

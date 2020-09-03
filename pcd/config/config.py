@@ -45,26 +45,23 @@ with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.yml"
         config = exc
 
 # deduce astro params
-for astro in ['angles', 'lods', 'contrasts']:
+for astro in ['angles', 'lods', 'contrasts', 'planet_spectra']:
     if isinstance(config['data'][astro], list):
-        assert len(config['data'][astro]) == config['data']['num_planets']
+        assert len(config['data'][astro]) == config['data']['num_indata']
 
     elif isinstance(config['data'][astro], int):
-        config['data'][astro] = [config['data'][astro]] * config['data']['num_planets']
+        config['data'][astro] = [config['data'][astro]] * config['data']['num_indata']
 
     elif isinstance(config['data'][astro], str):  # todo replace with regex to recognise tuples - https://stackoverflow.com/questions/39553008/how-to-read-a-python-tuple-using-pyyaml
         config['data'][astro]= config['data'][astro].replace('(', '')
         config['data'][astro]= config['data'][astro].replace(')', '')
         bounds = np.float_(config['data'][astro].split(','))
-        config['data'][astro] = np.random.uniform(bounds[0], bounds[1], config['data']['num_planets'])
+        config['data'][astro] = np.random.uniform(bounds[0], bounds[1], config['data']['num_indata'])
 
-# deduce filenames
-#todo check this todo...
-#todo num_test and num_train should be num_planets and both train and test data should include data from both obsfiles
-num_test = 1  #config['data']['num_planets'] -1
-# assert num_test.is_integer()
-# num_test = int(num_test)
-num_train = config['data']['num_planets']-1 #- num_test
+
+num_test = config['data']['num_indata'] * config['data']['test_frac']
+num_test = int(num_test)
+num_train = config['data']['num_indata'] - num_test
 
 testfile, extension = config['testfiles'].split('{id}')
 config['testfiles']  = [testfile + str(l) + extension for l in range(num_test)]
