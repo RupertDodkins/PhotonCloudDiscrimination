@@ -15,6 +15,10 @@ import MinkowskiEngine as ME
 from examples.minkunet import MinkUNet34C, MinkUNet14A
 
 from pcd.config.config import config
+from pcd.evaluate import tf_step
+
+if os.path.exists(config['train']['outputs']):
+    os.remove(config['train']['outputs'])
 
 def load_file(file_name):
     pcd = o3d.io.read_point_cloud(file_name)
@@ -62,30 +66,26 @@ def train():
         optimizer.zero_grad()
 
         # Get new data
-        # from tests.common import data_loader
-        # coords, feat, label = data_loader(is_classification=False)
-        # print(coords.shape, feat.shape, label.shape)
-        # print(coords, feat, label)
-
         coords, labels = load_dataset(config['trainfiles'][:1], config['train']['batch_size'])
         feats = np.array([[0., 0., 0., 0.], [1., 1., 1., 1.]])[np.int_(labels)]
-        # print(coords.shape, feats.shape, labels.shape)
         coords = np.concatenate((coords, np.zeros((140, coords.shape[1], 1))), axis=2)
-        # print(coords.shape)
         # val_ds = load_dataset(config['testfiles'], config['train']['batch_size'])
 
-        input = ME.SparseTensor(torch.from_numpy(feats[0]).float(), coords=torch.from_numpy(coords[0]*10000).float()).to(device)
-        # print(input.type(), input.float().type())
-        labels = torch.from_numpy(labels[0]).long().to(device)
+        input_pt = ME.SparseTensor(torch.from_numpy(feats[0]).float(), coords=torch.from_numpy(coords[0]*10000).float()).to(device)
+        labels_pt = torch.from_numpy(labels[0]).long().to(device)
         # print(type(labels), input.D, input.__repr__)
         # labels = labels
 
         # Forward
-        output = net(input)
+        output = net(input_pt)
 
         # Loss
-        loss = criterion(output.F, labels)
+        loss = criterion(output.F, labels_pt)
         print('Iteration: ', i, ', Loss: ', loss.item())
+
+        # print(output.F.cpu().detach().numpy().argmax(axis=1))
+        # print(coords[0], np.int_(labels[0]), output.F.cpu().detach().numpy())
+        tf_step(coords[0], np.int_(labels[0]), output.F.cpu().detach().numpy(), train=True)
 
         # Gradient
         loss.backward()

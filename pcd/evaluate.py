@@ -720,9 +720,12 @@ def trans_p2c(photons):
 def tf_step(input_data, input_label, pred_val, train=True):
     """ Get values of tensors to save them and read by metric_tesseracts """
 
-    pred_val = pred_val.numpy()
-    input_label = input_label.numpy()
-    input_data = input_data.numpy()
+    if not isinstance(pred_val, np.ndarray):
+        pred_val = pred_val.numpy()
+    if not isinstance(input_label, np.ndarray):
+        input_label = input_label.numpy()
+    if not isinstance(input_data, np.ndarray):
+        input_data = input_data.numpy()
     if not isinstance(train, bool):
         train = train.numpy()
 
@@ -740,7 +743,6 @@ def tf_step(input_data, input_label, pred_val, train=True):
     false_pos = int(np.sum(np.logical_and(neg, np.round(pred_val) == 1)))  # /float(pos)
     true_neg = int(np.sum(np.logical_and(neg, np.round(pred_val) == 0)))  # /float(neg)
     false_neg = int(np.sum(np.logical_and(pos, np.round(pred_val) == 0)))  # /float(neg)
-
     conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos,
                             true_pos + false_neg)
 
@@ -761,6 +763,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
-    onetime_metric_streams(end = -1)
-    metric_tesseracts(start = 0, end = -1, jump=5)
+    # onetime_metric_streams(end = -1)
+    metric_tesseracts(start = 0, end = -1, jump=1)
 
