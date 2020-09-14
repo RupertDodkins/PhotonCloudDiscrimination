@@ -252,13 +252,14 @@ class Class():
         red_photons = np.delete(self.all_photons, rand_cut, axis=0)
         red_pids = np.delete(self.all_pids, rand_cut, axis=0)
 
-        # raster the list so that every self.num_point start a new input cube
-        self.chunked_photons = red_photons.reshape(-1, self.num_point, self.dimensions, order='F')  # selects them throughout the obss
-        # plt.plot(self.chunked_photons[:, 0, 0])
-        # plt.figure()
-        # plt.plot(self.chunked_photons[0, :, 0])
-        # plt.show(block=True)
-        self.chunked_pids = red_pids.reshape(-1, self.num_point, 1, order='F')
+        if config['model'] != 'minkowski':
+            # raster the list so that every self.num_point start a new input cube
+            self.chunked_photons = red_photons.reshape(-1, self.num_point, self.dimensions, order='F')  # selects them throughout the obss
+            self.chunked_pids = red_pids.reshape(-1, self.num_point, 1, order='F')
+        else:
+            self.chunked_photons = red_photons.reshape(1, self.num_point, self.dimensions, order='F')  # selects them throughout the obss
+            self.chunked_pids = red_pids.reshape(1, self.num_point, 1, order='F')
+
 
     def save_class(self):
         # if self.type == 'test':

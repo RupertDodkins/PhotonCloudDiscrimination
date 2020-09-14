@@ -66,12 +66,12 @@ def train():
         optimizer.zero_grad()
 
         # Get new data
-        coords, labels = load_dataset(config['trainfiles'][:1], config['train']['batch_size'])
+        coords, labels = load_dataset(config['trainfiles'][i:i+1], config['train']['batch_size'])
         feats = np.array([[0., 0., 0., 0.], [1., 1., 1., 1.]])[np.int_(labels)]
-        coords = np.concatenate((coords, np.zeros((140, coords.shape[1], 1))), axis=2)
+        coords = np.concatenate((coords, np.zeros((coords.shape[0], coords.shape[1], 1))), axis=2)
         # val_ds = load_dataset(config['testfiles'], config['train']['batch_size'])
 
-        input_pt = ME.SparseTensor(torch.from_numpy(feats[0]).float(), coords=torch.from_numpy(coords[0]*10000).float()).to(device)
+        input_pt = ME.SparseTensor(torch.from_numpy(feats[0]).float(), coords=torch.from_numpy(coords[0]*1e6).float()).to(device)
         labels_pt = torch.from_numpy(labels[0]).long().to(device)
         # print(type(labels), input.D, input.__repr__)
         # labels = labels
