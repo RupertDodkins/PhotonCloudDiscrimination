@@ -17,6 +17,7 @@ from medis.plot_tools import grid
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
 import utils
+from evaluate import trans_p2c
 
 # sp.numframes = 5
 
@@ -77,6 +78,8 @@ class Obsfile():
                 t =  np.arctan2(photons[3],photons[2])
                 photons[-2:] = np.array([r,t])
 
+                # photons[2], photons[3] = r * np.sin(t) + cam.array_size[1]/2, r * np.cos(t) + cam.array_size[0]/2
+
             self.photons.append(photons.T)
 
 
@@ -126,7 +129,7 @@ class Obsfile():
                 range(mp.array_size[1])]
 
         if config['data']['trans_polar']:
-            bins[2] = np.linspace(0, mp.array_size[0]/2, mp.array_size[0])
+            bins[2] = np.linspace(0, np.sqrt(((mp.array_size[0]/2)**2) * 2), mp.array_size[0])
             bins[3] = np.linspace(-np.pi,np.pi, mp.array_size[1])
 
         coord = 'tpxy'
@@ -143,7 +146,7 @@ class Obsfile():
                 axes[o,p].imshow(image, norm=LogNorm(), aspect='auto',
                                  extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
 
-        plt.show(block=True)
+        # plt.show(block=True)
 
     def display_raw_cloud(self, downsamp=10000):
         fig = plt.figure()
@@ -231,7 +234,7 @@ class Class():
                                [0, mp.array_size[0]],
                                [0, mp.array_size[1]]])
             if config['data']['trans_polar']:
-                bounds[2] = [0, mp.array_size[0]/2]
+                bounds[2] = [0, np.sqrt(((mp.array_size[0]/2)**2) * 2)]
                 bounds[3] = [-np.pi, np.pi]
             self.all_photons -= np.mean(bounds, axis=1)
             self.all_photons /= np.max(self.all_photons, axis=0)
@@ -293,11 +296,15 @@ class Class():
             else:
                 self.smpw = np.ones((self.num_classes))
 
-        self.data = self.data[:, :, [1, 3, 0, 2]]
+        # self.data = self.data[:, :, [1, 3, 0, 2]]
 
         if self.debug:
             # self.display_chunk_cloud()
             self.display_2d_hists()
+            # for i in range(len(self.data)):
+            #     self.data[i] = trans_p2c(self.data[i])
+            # self.display_2d_hists()
+            # plt.show(block=True)
 
         with h5py.File(self.outfile, 'w') as hf:
             # hf.create_dataset('data', data=self.data[:-int(self.test_frac * num_input)])
@@ -361,8 +368,8 @@ class Class():
         else:
             bins = [np.linspace(-1,1,50), np.linspace(-1,1,50), np.linspace(-1,1,150), np.linspace(-1,1,150)]
 
-        # coord = 'tpxy'
-        coord = 'pytx'
+        coord = 'tpxy'
+        # coord = 'pytx'
 
         for o in range(self.num_classes):
             if ind:

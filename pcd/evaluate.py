@@ -337,11 +337,12 @@ def onetime_metric_streams(start=0, end=10):
         # lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-2]
         print(lastfile)
         losses, accuracies = [], []
+        from tensorflow.python.summary.summary_iterator import summary_iterator
         for e in tf.train.summary_iterator(lastfile):
             for v in e.summary.value:
-                if v.tag == 'loss':
+                if v.tag == 'loss' or v.tag == 'batch_loss':
                     losses.append(v.simple_value)
-                elif v.tag == 'accuracy':
+                elif v.tag == 'accuracy' or v.tag == 'batch_sparse_categorical_accuracy':
                     accuracies.append(v.simple_value)
 
         # get the number of x values
@@ -492,7 +493,8 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     bins = [np.linspace(-1, 1, 100)] * 4
     # dim_pairs = [[2, 3], [2, 1], [2, 0], [0, 1]]
     # dim_pairs = [[3, 1], [3, 0], [3, 2], [2, 0]]
-    dim_pairs = [[3, 1], [3, 2], [3, 0], [1, 2]]
+    # dim_pairs = [[3, 1], [3, 2], [3, 0], [1, 2]]
+    dim_pairs = [[3, 2], [3, 1], [3, 0], [1, 2]]
     # dim_pairs = np.array(dim_pairs)[[1, 3, 0, 2]]
 
     for step in range(start, end+1, jump):
@@ -518,7 +520,8 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
         images = [[]]*len(metrics)
         for row, metric in enumerate(metrics):
             red_data = cur_data[metric]
-            red_data = trans_p2c(red_data)
+            # if config['data']['trans_polar']:
+            #     red_data = trans_p2c(red_data)
 
             images[row] = [[]]*len(dim_pairs)
             for ib, dim_pair in enumerate(dim_pairs):
@@ -701,10 +704,11 @@ def load_pointclouds(start=-10, end=-1, jump=1, ib=0):
 def trans_p2c(photons):
     # photons[2] += 1
     # photons[2] *= mp.array_size[1]/2
-    photons[:, 2] *= np.pi
+    photons[:, 3] *= np.pi
+    photons[:, 2] += 1
 
-    x = photons[:, 3] * np.cos(photons[:, 2])
-    y = photons[:, 3] * np.sin(photons[:, 2])
+    x = photons[:, 2] * np.cos(photons[:, 3])
+    y = photons[:, 2] * np.sin(photons[:, 3])
 
     # x += mp.array_size[1]/2
     # y += mp.array_size[0]/2
@@ -713,10 +717,50 @@ def trans_p2c(photons):
 
     return photons
 
+def tf_step(input_data, input_label, pred_val, train=True):
+    """ Get values of tensors to save them and read by metric_tesseracts """
+
+    pred_val = pred_val.numpy()
+    input_label = input_label.numpy()
+    input_data = input_data.numpy()
+    if not isinstance(train, bool):
+        train = train.numpy()
+
+    if pred_val.shape[-1] > 1:
+        pred_val = np.argmax(pred_val, axis=-1)
+
+    with open(config['train']['outputs'], 'ab') as handle:
+        field_tup = (input_label, pred_val, input_data, train)
+        pickle.dump(field_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    pos = input_label == 1
+    neg = input_label == 0
+
+    true_pos = int(np.sum(np.logical_and(pos, np.round(pred_val) == 1)))  # /float(pos)
+    false_pos = int(np.sum(np.logical_and(neg, np.round(pred_val) == 1)))  # /float(pos)
+    true_neg = int(np.sum(np.logical_and(neg, np.round(pred_val) == 0)))  # /float(neg)
+    false_neg = int(np.sum(np.logical_and(pos, np.round(pred_val) == 0)))  # /float(neg)
+
+    conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos,
+                            true_pos + false_neg)
+
+    print('true_pos: %f' % (true_pos))
+    print('true_neg: %f' % (true_neg))
+    print('false_pos: %f' % (false_pos))
+    print('false_neg: %f' % (false_neg))
+    print(conf)
+    try:
+        print('Precision: %f' % (true_pos / (true_pos + false_pos)))
+        print('Recall: %f' % (true_pos / (true_pos + false_neg)))
+    except ZeroDivisionError:
+        pass
+
+    return 1, 1, 1, True
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
-    # onetime_metric_streams(end = -1)
-    metric_tesseracts(start = 0, end = -2, jump=1)
+    onetime_metric_streams(end = -1)
+    metric_tesseracts(start = 0, end = -1, jump=5)
 
