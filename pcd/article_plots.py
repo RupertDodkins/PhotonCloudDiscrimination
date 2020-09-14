@@ -95,7 +95,7 @@ def plot_reduced_images(ind=-1):
 
 def plot_3D_pointclouds():
     alldata = load_meta()
-    cur_seg, pred_seg_res, cur_data, trainbool = alldata[-10]
+    cur_seg, pred_seg_res, cur_data, trainbool = alldata[-1]
     del alldata
 
     metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
@@ -167,7 +167,7 @@ def get_photons(amount=1):
                                                int(np.sum(metrics[2])), int(np.sum(metrics[3])),
     print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
 
-    cur_data = cur_data[:, :, [0, 2, 1, 3]]
+    # cur_data = cur_data[:, :, [0, 2, 1, 3]]
 
     # fig = plt.figure()
     all_photons = np.concatenate(
@@ -197,7 +197,7 @@ def get_tess(ind=-1):
     return all_tess, star_tess, planet_tess
 
 if __name__ == '__main__':
-    # get_reduced_images(ind=2)
-    # for i in range(0,25,5):
-    #     get_reduced_images(ind=i)
-    plot_3D_pointclouds()
+    get_reduced_images(ind=2)
+    for i in range(0,25,5):
+        get_reduced_images(ind=i)
+    # plot_3D_pointclouds()
