@@ -415,7 +415,7 @@ def make_input(config):
 
     outfiles = np.append(config['trainfiles'], config['testfiles'])
 
-    debugs = [True] * config['data']['num_indata']
+    debugs = [False] * config['data']['num_indata']
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)
@@ -430,26 +430,26 @@ def make_input(config):
     print('train_types', train_types)
     for i, outfile, train_type, aug_ind in zip(range(config['data']['num_indata']), outfiles, train_types, aug_inds):
         dprint(d.contrasts[i], d.lods[i], config['data']['planet_spectra'][i], outfile, train_type, aug_ind)
-        # if not os.path.exists(outfile):
-        if not aug_ind:  # any number > 0
-            contrast = [d.contrasts[i]]
-            lods = [d.lods[i]]
-            spectra = [config['data']['star_spectra'], config['data']['planet_spectra'][i]]
-            obs = Obsfile(f'{i}', contrast, lods, spectra)
-            photons = obs.photons
+        if not os.path.exists(outfile):
+            if not aug_ind:  # any number > 0
+                contrast = [d.contrasts[i]]
+                lods = [d.lods[i]]
+                spectra = [config['data']['star_spectra'], config['data']['planet_spectra'][i]]
+                obs = Obsfile(f'{i}', contrast, lods, spectra)
+                photons = obs.photons
 
-        print([photon.shape for photon in photons])
-        # for label, outfile, type in zip(range(config['data']['num_indata']),outfiles, train_types):
-        print(i, outfile, type)
-        # class_photons = [photons[0], photons[i+1]]
+            print([photon.shape for photon in photons])
+            # for label, outfile, type in zip(range(config['data']['num_indata']),outfiles, train_types):
+            print(i, outfile, type)
+            # class_photons = [photons[0], photons[i+1]]
 
-        c = Class(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
-        c.process_photons()
-        c.save_class()
-        # if config['data']['num_augs'] > 0:
-        #     for aug in range(config['data']['num_augs']):
-        #         c.aug_input(aug)
-        #         c.save_class()
+            c = Class(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
+            c.process_photons()
+            c.save_class()
+            # if config['data']['num_augs'] > 0:
+            #     for aug in range(config['data']['num_augs']):
+            #         c.aug_input(aug)
+            #         c.save_class()
 
 if __name__ == "__main__":
     make_input(config)
