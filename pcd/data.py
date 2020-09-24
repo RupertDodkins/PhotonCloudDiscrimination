@@ -8,6 +8,7 @@ from matplotlib.colors import LogNorm
 import random
 import h5py
 
+
 # from medis.medis_main import RunMedis
 from medis.telescope import Telescope
 from medis.MKIDS import Camera
@@ -450,6 +451,11 @@ def make_input(config):
             #     for aug in range(config['data']['num_augs']):
             #         c.aug_input(aug)
             #         c.save_class()
+
+    workingdir_config = config['working_dir'] + 'config.yml'
+    repo_config = os.path.join(os.path.dirname(__file__), 'config/config.yml')
+    if not os.path.exists(workingdir_config):
+        shutil.copyfile(repo_config, workingdir_config)
 
 if __name__ == "__main__":
     make_input(config)
