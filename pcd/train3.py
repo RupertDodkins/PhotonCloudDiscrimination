@@ -13,6 +13,7 @@ from torch.optim import SGD
 
 import MinkowskiEngine as ME
 from examples.minkunet import MinkUNet34C, MinkUNet14A
+from examples.example import ExampleNetwork
 
 from pcd.config.config import config
 from pcd.evaluate import tf_step
@@ -51,64 +52,87 @@ def load_dataset(in_files, batch_size):
     return in_data, in_label
 
 def reform_input(coords, labels, device):
-    feats = np.array([[0., 0., 0., 0.], [1., 1., 1., 1.]])[np.int_(labels)]
-    coords = np.concatenate((coords, np.zeros((coords.shape[0], coords.shape[1], 1))), axis=2)
+    labels = np.int32(labels)
+    feats = np.array([[0., 0., 0., 0.], [1., 1., 1., 1.]])[labels]
 
-    input_pt = ME.SparseTensor(torch.from_numpy(feats[0]).float(),
-                               coords=torch.from_numpy(coords[0] * 1e6).float()).to(device)
-    labels_pt = torch.from_numpy(labels[0]).long().to(device)
+    # coords = np.concatenate((coords, np.zeros((coords.shape[0], coords.shape[1], 1))), axis=2)
+    #print(warning the batch num should be on left)
+    # input_pt = ME.SparseTensor(torch.from_numpy(feats[0]).float(),
+    #                            coords=torch.from_numpy(coords[0] * 1e6).float()).to(device)
 
-    return input_pt, labels_pt
+    coords, feats, labels = coords[0], feats[0], labels[0]
+    if config['data']['quantize']:
+        coords, feats, labels = ME.utils.sparse_quantize(
+            coords=coords,
+            feats=feats,
+            labels=labels,
+            quantization_size=0.005)
+
+    if config['data']['batch_coords']:
+        coords_pt = ME.utils.batched_coordinates([coords * 1e6])
+    else:
+        coords = np.concatenate((coords * 1e6, np.zeros((coords.shape[0], 1))), axis=1)
+        coords_pt = torch.from_numpy(coords).int()
+    feats_pt =  torch.from_numpy(feats).float()
+
+    labels_pt = torch.from_numpy(labels).long().to(device)
+
+    input_pt = ME.SparseTensor(feats_pt,
+                               coords=coords_pt
+                               ).to(device)
+
+    return input_pt, labels_pt, coords, feats, labels
 
 def train():
 
     # loss and network
     criterion = nn.CrossEntropyLoss()
     net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
-    # net = MinkUNet34C(3, 2, 4)
+    # net = ExampleNetwork(in_feat=4, out_feat=2, D=4)
     device = torch.device('cuda')
     net = net.to(device)
     # print(net)
 
     optimizer = SGD(net.parameters(), lr=1e-2)
+    for epoch in range(config['train']['max_epoch']):
 
-    for i in range(int(config['data']['num_indata']*(1-config['data']['test_frac']))):
-        optimizer.zero_grad()
+        for i in range(int(config['data']['num_indata']*(1-config['data']['test_frac']))):
+            optimizer.zero_grad()
 
-        # Get new data
-        coords, labels = load_dataset(config['trainfiles'][i:i+1], config['train']['batch_size'])
-        input_pt, labels_pt = reform_input(coords, labels, device)
+            # Get new data
+            coords, labels = load_dataset(config['trainfiles'][i:i+1], config['train']['batch_size'])
+            input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
-        # Forward
-        output = net(input_pt)
+            # Forward
+            output = net(input_pt)
 
-        # Loss
-        loss = criterion(output.F, labels_pt)
-        print('Iteration: ', i, ', Loss: ', loss.item())
+            # Loss
+            loss = criterion(output.F, labels_pt)
+            print('Iteration: ', i, ', Loss: ', loss.item())
 
-        tf_step(coords[0], np.int_(labels[0]), output.F.cpu().detach().numpy(), train=True)
+            tf_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), train=True)
 
-        # Gradient
-        loss.backward()
-        optimizer.step()
+            # Gradient
+            loss.backward()
+            optimizer.step()
 
-    test(net, device)
+        test(net, device)
 
-    # Saving and loading a network
-    torch.save(net.state_dict(), 'test.pth')
+        # Saving and loading a network
+        torch.save(net.state_dict(), 'test.pth')
     # net.load_state_dict(torch.load('test.pth'))
 
 def test(net, device):
     for i in range(int(config['data']['num_indata'] * config['data']['test_frac'])):
         coords, labels = load_dataset(config['testfiles'][i:i + 1], config['train']['batch_size'])
-        input_pt, labels_pt = reform_input(coords, labels, device)
+        input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
         output = net(input_pt)
 
         # loss = criterion(output.F, labels_pt)
         # print('Iteration: ', i, ', Loss: ', loss.item())
 
-        tf_step(coords[0], np.int_(labels[0]), output.F.cpu().detach().numpy(), train=False)
+        tf_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), train=False)
 
     # net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
     # net.load_state_dict(torch.load('test.pth'))

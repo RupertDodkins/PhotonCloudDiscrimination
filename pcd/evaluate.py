@@ -490,7 +490,12 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
                                  xtitles=['X','Phase','Time','Phase'], ytitles=['Y']*4, numsteps=allsteps,
                                  norm=LogNorm())
 
-    bins = [np.linspace(-1, 1, 100)] * 4
+    if config['data']['quantize']:
+        _,_, cur_data, _ = alldata[0]
+        bins = [np.linspace(np.min(cur_data[:,0]),np.max(cur_data[:,0]), 100)] * 4
+    else:
+        bins = [np.linspace(-1, 1, 100) * 1e6] * 4
+
     # dim_pairs = [[2, 3], [2, 1], [2, 0], [0, 1]]
     # dim_pairs = [[3, 1], [3, 0], [3, 2], [2, 0]]
     # dim_pairs = [[3, 1], [3, 2], [3, 0], [1, 2]]
