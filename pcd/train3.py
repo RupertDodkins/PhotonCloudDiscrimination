@@ -62,11 +62,12 @@ def reform_input(coords, labels, device):
 
     coords, feats, labels = coords[0], feats[0], labels[0]
     if config['data']['quantize']:
+        quantization_size = 0.005 * 10**((config['num_point'] / 131072) - 1)  # = 0.005 for num_point==131072, 0.05 for num_point== 262144
         coords, feats, labels = ME.utils.sparse_quantize(
             coords=coords,
             feats=feats,
             labels=labels,
-            quantization_size=0.005)
+            quantization_size=quantization_size)
 
     if config['data']['batch_coords']:
         coords_pt = ME.utils.batched_coordinates([coords * 1e6])
