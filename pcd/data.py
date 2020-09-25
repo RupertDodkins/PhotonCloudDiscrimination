@@ -126,7 +126,7 @@ class Obsfile():
     def display_2d_hists(self):
         fig, axes = utils.init_grid(rows=self.numobj, cols=4)
 
-        bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
+        bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-250, 0, 50), range(mp.array_size[0]),
                 range(mp.array_size[1])]
 
         if config['data']['trans_polar']:
@@ -144,10 +144,10 @@ class Obsfile():
                 if pair in [['x','p'], ['x','t']]:
                     image = image.T
                     inds = inds[1], inds[0]
-                axes[o,p].imshow(image, norm=LogNorm(), aspect='auto',
+                axes[o,p].imshow(image, aspect='auto',
                                  extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
 
-        # plt.show(block=True)
+        plt.show(block=True)
 
     def display_raw_cloud(self, downsamp=10000):
         fig = plt.figure()
