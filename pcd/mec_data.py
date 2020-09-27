@@ -22,11 +22,11 @@ import pcd.data as data
 import utils
 
 mp.array_size = [144,140]  # the size of mec arrays
-ap.wvl_range = np.array([0,1500])/1e9
+# ap.wvl_range = np.array([0,1500])/1e9
 
 class Obsfile():
     """ Gets the photon lists from photontables """
-    def __init__(self, filename, debug=True):
+    def __init__(self, filename, debug=False):
         iop.update_testname(config['working_dir'])
         self.medis_cache = iop.testdir
         iop.photonlist = os.path.join(config['working_dir'], filename)
@@ -72,11 +72,13 @@ class Obsfile():
 
         print('photons', len(self.photons[0]))
 
-        arg_planet_photons = self.photons[1] > -100
+        # arg_planet_photons = self.photons[1] > -100
+        #
+        # self.photons = self.photons.T
+        #
+        # self.photons = [self.photons[~arg_planet_photons], self.photons[arg_planet_photons]]
 
-        self.photons = self.photons.T
-
-        self.photons = [self.photons[~arg_planet_photons], self.photons[arg_planet_photons]]
+        self.photons = [self.photons.T]
 
         self.display_2d_hists = data.Obsfile.display_2d_hists
 
@@ -84,38 +86,48 @@ class Obsfile():
             self.display_2d_hists(self)
 
 
-def make_input(config):
+def make_input(config, inject_fake_comp=True):
+    if inject_fake_comp:
+        d = data.Data(config)
 
-    config['trainfiles'] = config['trainfiles'][:1]
-    config['testfiles'] = []
-    config['data']['num_indata'] = 1
+    # config['trainfiles'] = config['trainfiles'][:1]
+    # config['testfiles'] = []
+    # config['data']['num_indata'] = 1
 
     outfiles = np.append(config['trainfiles'], config['testfiles'])
 
-    debugs = [True] * config['data']['num_indata']
-    debugs[0] = True
+    debugs = [False] * config['data']['num_indata']
+    # debugs[0] = True
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)
     if num_test > 0:
         train_types[-num_test:] = ['test']*num_test
 
-    aug_inds = np.arange(config['data']['num_indata'])
-    aug_inds[::config['data']['aug_ratio']+1] = 0  # eg [0,1,2,3,0,5,6,7,0,9,10,11,...] when aug_ratio == 3
+    # aug_inds = np.arange(config['data']['num_indata'])
+    # aug_inds[::config['data']['aug_ratio']+1] = 0  # eg [0,1,2,3,0,5,6,7,0,9,10,11,...] when aug_ratio == 3
 
     print('train_types', train_types)
-    for i, outfile, train_type, aug_ind in zip(range(config['data']['num_indata']), outfiles, train_types, aug_inds):
+    for i, outfile, train_type in zip(range(config['data']['num_indata']), outfiles, train_types):
         if not os.path.exists(outfile):
-            if not aug_ind:  # any number > 0
-                obs = Obsfile(config['mec'])
-                photons = obs.photons
+            obs = Obsfile(config['mec'])
+            photons = obs.photons
+
+            if inject_fake_comp:
+                contrast = [d.contrasts[i]]
+                lods = [d.lods[i]]
+                spectra = [config['data']['star_spectra'], config['data']['planet_spectra'][i]]
+                obs = data.Obsfile(f'{i}', contrast, lods, spectra)
+                planet_photons = obs.photons[1]
+                photons = [photons[0], planet_photons]
 
             print([photon.shape for photon in photons])
             # for label, outfile, type in zip(range(config['data']['num_indata']),outfiles, train_types):
             print(i, outfile, type)
             # class_photons = [photons[0], photons[i+1]]
 
-            c = data.Class(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
+            c = data.Class(photons, outfile, train_type=train_type, debug=debugs[i],
+                           rm_input=obs.medis_cache)
             c.process_photons()
             c.save_class()
             # if config['data']['num_augs'] > 0:

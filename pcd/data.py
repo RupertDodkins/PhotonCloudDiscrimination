@@ -231,7 +231,8 @@ class Class():
         # normalise photons
         if use_bounds:
             bounds = np.array([[0, sp.sample_time * sp.numframes],
-                               mp.wavecal_coeffs[0] * ap.wvl_range + mp.wavecal_coeffs[1],  # [-116, 0], ap.wvl_range = np.array([800, 1500]), mp.wavecal_coeffs = [1. / 6, -250]
+                               # mp.wavecal_coeffs[0] * ap.wvl_range + mp.wavecal_coeffs[1],  # [-116, 0], ap.wvl_range = np.array([800, 1500]), mp.wavecal_coeffs = [1. / 6, -250]
+                               [-250, 0],
                                [0, mp.array_size[0]],
                                [0, mp.array_size[1]]])
             if config['data']['trans_polar']:
