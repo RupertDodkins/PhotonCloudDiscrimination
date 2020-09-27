@@ -22,6 +22,7 @@ import pcd.data as data
 import utils
 
 mp.array_size = [144,140]  # the size of mec arrays
+ap.wvl_range = np.array([0,1500])/1e9
 
 class Obsfile():
     """ Gets the photon lists from photontables """
@@ -29,7 +30,7 @@ class Obsfile():
         iop.update_testname(config['working_dir'])
         self.medis_cache = iop.testdir
         iop.photonlist = os.path.join(config['working_dir'], filename)
-        self.numobj = 1
+        self.numobj = 2
 
         cam = Camera(usesave=False, product='photons')
         cam.load_photontable()  # don't give it option to create photons
@@ -71,7 +72,11 @@ class Obsfile():
 
         print('photons', len(self.photons[0]))
 
-        self.photons = [self.photons.T]
+        arg_planet_photons = self.photons[1] > -100
+
+        self.photons = self.photons.T
+
+        self.photons = [self.photons[~arg_planet_photons], self.photons[arg_planet_photons]]
 
         self.display_2d_hists = data.Obsfile.display_2d_hists
 
@@ -102,7 +107,7 @@ def make_input(config):
     for i, outfile, train_type, aug_ind in zip(range(config['data']['num_indata']), outfiles, train_types, aug_inds):
         if not os.path.exists(outfile):
             if not aug_ind:  # any number > 0
-                obs = Obsfile(config['mec'], debugs[i])
+                obs = Obsfile(config['mec'])
                 photons = obs.photons
 
             print([photon.shape for photon in photons])
