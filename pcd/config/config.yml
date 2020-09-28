@@ -11,10 +11,6 @@ task: sem_seg
 classes: 2  # star=0, planet=1
 model: minkowski # models.pointnet2_sem_seg  #models.pointnet2_part_seg
 
-mec:
-  h5s: 1596112950.h5
-  offset: [10, -50]
-
 data:
   num_indata: 4  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
   null_frac: 0.  # num of input data that are null (no planet photons)
@@ -53,3 +49,7 @@ train:
   cache_freq: 10
   num_train_batch: 5  # load batches of train data with this size on each cycle in train()
   num_test_batch: 2  # load batches of train data with this size on each cycle in train()
+
+mec:
+  h5s: 1596112950.h5
+  offset: [10, -50]
