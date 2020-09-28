@@ -3,23 +3,12 @@ import shutil
 import numpy as np
 from random import sample
 
-import matplotlib.pylab as plt
-from mpl_toolkits.mplot3d import Axes3D  # don't listen to pycharm this is necessary
-from matplotlib import gridspec
-from matplotlib.colors import LogNorm
-import random
-import h5py
-
-# from medis.medis_main import RunMedis
-from medis.telescope import Telescope
 from medis.MKIDS import Camera
-from medis.utils import dprint
-from medis.plot_tools import grid
 
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
 import pcd.input as input
-import utils
+
 
 class MecObs():
     """ Gets the photon lists from photontables """
@@ -74,7 +63,7 @@ class MecObs():
 
         self.photons = [self.photons.T]
 
-        self.display_2d_hists = data.MedisObs.display_2d_hists
+        self.display_2d_hists = input.MedisObs.display_2d_hists
 
         if debug:
             self.display_2d_hists(self)
@@ -82,7 +71,7 @@ class MecObs():
 
 def make_input(config, inject_fake_comp=True):
     if inject_fake_comp:
-        d = data.Data(config)
+        d = input.Data(config)
 
     outfiles = np.append(config['trainfiles'], config['testfiles'])
 
@@ -102,7 +91,7 @@ def make_input(config, inject_fake_comp=True):
                 contrast = [d.contrasts[i]]
                 lods = [d.lods[i]]
                 spectra = [config['data']['star_spectra'], config['data']['planet_spectra'][i]]
-                obs = data.MedisObs(f'{i}', contrast, lods, spectra)
+                obs = input.MedisObs(f'{i}', contrast, lods, spectra)
                 planet_photons = obs.photons[1]
                 photons = [photons[0], planet_photons]
 
