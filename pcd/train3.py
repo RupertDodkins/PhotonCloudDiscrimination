@@ -2,10 +2,8 @@
 
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 import copy
 
-import h5py
 import open3d as o3d
 
 import torch
@@ -14,7 +12,6 @@ from torch.optim import SGD
 
 import MinkowskiEngine as ME
 from examples.minkunet import MinkUNet34C, MinkUNet14A
-from examples.resnet import ResNet50
 from examples.unet import UNet
 
 from pcd.config.config import config
@@ -68,11 +65,9 @@ def train():
     # loss and network
     criterion = nn.CrossEntropyLoss()
     net = UNet(in_nchannel=4, out_nchannel=2, D=4)  # D is 4 - 1
-    # net = ResNet50(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
     # net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
     device = torch.device('cuda')
     net = net.to(device)
-    # print(net)
 
     optimizer = SGD(net.parameters(), lr=1e-2)
     for epoch in range(config['train']['max_epoch']):
@@ -132,10 +127,7 @@ def test(net, device):
             # print([params_to_train_after[i].mean() for i in range(len(params_to_train))])
             # print([params_to_train[i].mean() == params_to_train_after[i].mean() for i in range(len(params_to_train))])
 
-    # net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
-    # net.load_state_dict(torch.load('test.pth'))
-
 if __name__ == '__main__':
     train()
-    # test()
+
 
