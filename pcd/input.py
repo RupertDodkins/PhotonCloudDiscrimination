@@ -16,7 +16,7 @@ from medis.plot_tools import grid
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
 import utils
-from evaluate import trans_p2c
+from visualization import trans_p2c
 
 class MedisObs():
     """ Gets the photon lists from MEDIS """
