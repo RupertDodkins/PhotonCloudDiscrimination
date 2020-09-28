@@ -13,7 +13,8 @@ from torch.optim import SGD
 
 import MinkowskiEngine as ME
 from examples.minkunet import MinkUNet34C, MinkUNet14A
-from examples.example import ExampleNetwork
+from examples.resnet import ResNet50
+from examples.unet import UNet
 
 from pcd.config.config import config
 from pcd.evaluate import tf_step
@@ -88,8 +89,9 @@ def train():
 
     # loss and network
     criterion = nn.CrossEntropyLoss()
-    net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
-    # net = ExampleNetwork(in_feat=4, out_feat=2, D=4)
+    net = UNet(in_nchannel=4, out_nchannel=2, D=4)  # D is 4 - 1
+    # net = ResNet50(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
+    # net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
     device = torch.device('cuda')
     net = net.to(device)
     # print(net)
