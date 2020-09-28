@@ -3,6 +3,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import copy
 
 import h5py
 import open3d as o3d
@@ -17,7 +18,7 @@ from examples.resnet import ResNet50
 from examples.unet import UNet
 
 from pcd.config.config import config
-from pcd.evaluate import tf_step
+from pcd.visualization import tf_step
 
 if os.path.exists(config['train']['outputs']):
     os.remove(config['train']['outputs'])
@@ -98,7 +99,7 @@ def train():
 
     optimizer = SGD(net.parameters(), lr=1e-2)
     for epoch in range(config['train']['max_epoch']):
-
+        net.train()
         for i in range(int(config['data']['num_indata']*(1-config['data']['test_frac']))):
             optimizer.zero_grad()
 
@@ -108,6 +109,9 @@ def train():
 
             # Forward
             output = net(input_pt)
+
+            # params_to_train = copy.deepcopy([mp[1] for mp in net.named_parameters()])
+            # print([params_to_train[i].mean() for i in range(len(params_to_train))])
 
             # Loss
             loss = criterion(output.F, labels_pt)
@@ -119,23 +123,37 @@ def train():
             loss.backward()
             optimizer.step()
 
+            # params_to_train_after = copy.deepcopy([mp[1] for mp in net.named_parameters()])
+            # print([params_to_train[i].mean() for i in range(len(params_to_train))])
+            # print([params_to_train_after[i].mean() for i in range(len(params_to_train))])
+            # print([params_to_train[i].mean() == params_to_train_after[i].mean() for i in range(len(params_to_train))])
+
         test(net, device)
 
         # Saving and loading a network
         torch.save(net.state_dict(), 'test.pth')
-    # net.load_state_dict(torch.load('test.pth'))
 
 def test(net, device):
-    for i in range(int(config['data']['num_indata'] * config['data']['test_frac'])):
-        coords, labels = load_dataset(config['testfiles'][i:i + 1], config['train']['batch_size'])
-        input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
+    net.eval()
+    with torch.no_grad():
+        for i in range(int(config['data']['num_indata'] * config['data']['test_frac'])):
+            coords, labels = load_dataset(config['testfiles'][i:i + 1], config['train']['batch_size'])
+            input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
-        output = net(input_pt)
+            # params_to_train = copy.deepcopy([mp[1] for mp in net.named_parameters()])
+            # print([params_to_train[i].mean() for i in range(len(params_to_train))])
 
-        # loss = criterion(output.F, labels_pt)
-        # print('Iteration: ', i, ', Loss: ', loss.item())
+            output = net(input_pt)
 
-        tf_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), train=False)
+            # loss = criterion(output.F, labels_pt)
+            # print('Iteration: ', i, ', Loss: ', loss.item())
+
+            tf_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), train=False)
+
+            # params_to_train_after = copy.deepcopy([mp[1] for mp in net.named_parameters()])
+            # print([params_to_train[i].mean() for i in range(len(params_to_train))])
+            # print([params_to_train_after[i].mean() for i in range(len(params_to_train))])
+            # print([params_to_train[i].mean() == params_to_train_after[i].mean() for i in range(len(params_to_train))])
 
     # net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
     # net.load_state_dict(torch.load('test.pth'))
