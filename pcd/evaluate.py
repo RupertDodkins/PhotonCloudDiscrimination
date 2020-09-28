@@ -18,15 +18,15 @@ from medis.plot_tools import grid
 
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
-import pcd.data as data
+import pcd.input as input
 import utils
-
-mp.array_size = [144,140]  # the size of mec arrays
-# ap.wvl_range = np.array([0,1500])/1e9
 
 class MecObs():
     """ Gets the photon lists from photontables """
     def __init__(self, filename, debug=False):
+        mp.array_size = [144, 140]  # the size of mec arrays
+        # ap.wvl_range = np.array([0,1500])/1e9
+
         iop.update_testname(config['working_dir'])
         self.medis_cache = iop.testdir
         iop.photonlist = os.path.join(config['working_dir'], filename)
@@ -84,10 +84,6 @@ def make_input(config, inject_fake_comp=True):
     if inject_fake_comp:
         d = data.Data(config)
 
-    # config['trainfiles'] = config['trainfiles'][:1]
-    # config['testfiles'] = []
-    # config['data']['num_indata'] = 1
-
     outfiles = np.append(config['trainfiles'], config['testfiles'])
 
     debugs = [False] * config['data']['num_indata']
@@ -95,13 +91,8 @@ def make_input(config, inject_fake_comp=True):
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)
-    if num_test > 0:
-        train_types[-num_test:] = ['test']*num_test
+    if num_test > 0: train_types[-num_test:] = ['test']*num_test
 
-    # aug_inds = np.arange(config['data']['num_indata'])
-    # aug_inds[::config['data']['aug_ratio']+1] = 0  # eg [0,1,2,3,0,5,6,7,0,9,10,11,...] when aug_ratio == 3
-
-    print('train_types', train_types)
     for i, outfile, train_type in zip(range(config['data']['num_indata']), outfiles, train_types):
         if not os.path.exists(outfile):
             obs = MecObs(config['mec']['h5s'])
@@ -115,19 +106,10 @@ def make_input(config, inject_fake_comp=True):
                 planet_photons = obs.photons[1]
                 photons = [photons[0], planet_photons]
 
-            print([photon.shape for photon in photons])
-            # for label, outfile, type in zip(range(config['data']['num_indata']),outfiles, train_types):
-            print(i, outfile, type)
-            # class_photons = [photons[0], photons[i+1]]
-
-            c = data.NnReform(photons, outfile, train_type=train_type, debug=debugs[i],
+            c = input.NnReform(photons, outfile, train_type=train_type, debug=debugs[i],
                            rm_input=obs.medis_cache)
             c.process_photons()
             c.save_class()
-            # if config['data']['num_augs'] > 0:
-            #     for aug in range(config['data']['num_augs']):
-            #         c.aug_input(aug)
-            #         c.save_class()
 
     workingdir_config = config['working_dir'] + 'config.yml'
     repo_config = os.path.join(os.path.dirname(__file__), 'config/config.yml')
