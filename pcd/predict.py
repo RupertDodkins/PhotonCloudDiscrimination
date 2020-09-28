@@ -28,12 +28,12 @@ def predict():
     net = UNet(in_nchannel=4, out_nchannel=2, D=4)
     device = torch.device('cuda')
     net = net.to(device)
-    net.load_state_dict(torch.load('test.pth'))
+    net.load_state_dict(torch.load(config['savepath']))
     net.eval()
 
     with torch.no_grad():
-        for i in range(int(config['data']['num_indata'] * config['data']['test_frac'])):
-            coords, labels = load_dataset(config['testfiles'][i:i + 1], config['train']['batch_size'])
+        for evalfile in config['mec']['evalfiles']:
+            coords, labels = load_dataset([evalfile])
             input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
             output = net(input_pt)

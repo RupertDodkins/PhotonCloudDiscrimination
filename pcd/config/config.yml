@@ -1,6 +1,8 @@
 debug: True
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 200927/]  # concat DIR with that suffix and store as WDIR
+#pcd_data: &DIR /mnt/data0/dodkins/mec/20200729/HR8799/
+#working_dir: &WDIR !join [*DIR, stare/]  # concat DIR with that suffix and store as WDIR
+working_dir: &WDIR !join [*DIR, 200928b/]  # concat DIR with that suffix and store as WDIR
 overwrite_cache: False
 pointnet_version: 2
 num_point: &PN 131072  #262144  # 131072
@@ -10,18 +12,19 @@ dimensions: 4
 task: sem_seg
 classes: 2  # star=0, planet=1
 model: minkowski # models.pointnet2_sem_seg  #models.pointnet2_part_seg
+savepath: 'test.pth'
 
 data:
-  num_indata: 4  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
+  num_indata: 2  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
   null_frac: 0.  # num of input data that are null (no planet photons)
-  test_frac: 0.25
+  test_frac: 0.5
   aug_ratio: 0  # For every 1 medis input duplicate and rotate it {aug_ratio} times
   medis_config: "medis_params.py"
   angles: (0,359) #72,108,144,180,216,252,288,324]  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
-  lods: (1,2) #4,2,3,4,2,3,4,3] # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
-  contrasts: -4   # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  lods: (1,4) #4,2,3,4,2,3,4,3] # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  contrasts: (-3,-5)   # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
   star_spectra: 6000
-  planet_spectra: (1000,1000) # length(num_indata) + 1
+  planet_spectra: (1000,3000) # length(num_indata) + 1
 #  num_augs: 4  # number of rotations to apply to each input
   time_diff: False
   trans_polar: False
@@ -33,7 +36,7 @@ train:
   gpu: 1
   num_point: *PN
   batch_size: 3
-  max_epoch: 1
+  max_epoch: 5
   wd: 0.
   log_dir: *WDIR
   data_dir: *WDIR
@@ -51,5 +54,7 @@ train:
   num_test_batch: 2  # load batches of train data with this size on each cycle in train()
 
 mec:
-  h5s: 1596112950.h5
+  h5s: [1596112950.h5, 1596113220.h5, 1596113490.h5, 1596113760.h5, 1596114030.h5]
   offset: [10, -50]
+  numeval: 1
+  evalfiles: !join [*WDIR, 'evalfile_{id}.h5']

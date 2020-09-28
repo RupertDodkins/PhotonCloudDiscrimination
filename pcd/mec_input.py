@@ -12,68 +12,75 @@ import pcd.input as input
 
 class MecObs():
     """ Gets the photon lists from photontables """
-    def __init__(self, filename, debug=False):
+    def __init__(self, filenames, debug=True):
         mp.array_size = [144, 140]  # the size of mec arrays
         # ap.wvl_range = np.array([0,1500])/1e9
 
         iop.update_testname(config['working_dir'])
-        self.medis_cache = iop.testdir
-        iop.photonlist = os.path.join(config['working_dir'], filename)
-        self.numobj = 1
-
-        cam = Camera(usesave=False, product='photons')
-        cam.load_photontable()  # don't give it option to create photons
-
-        self.photons = cam.photons
-
-        print('photons', len(self.photons[0]))
-
-        tcut = np.logical_and(self.photons[0] > 0, self.photons[0] < 11)
-        self.photons = self.photons[:, tcut]
-
-        print('photons', len(self.photons[0]))
-
-        self.photons[1] = cam.phase_cal(self.photons[1]/1e10)  #angstroms
-        pcut = np.logical_and(self.photons[1] > -250, self.photons[1] < 0)
-        self.photons = self.photons[:, pcut]
-
-        # pcut = np.logical_and(self.photons[1] < 1e5, self.photons[1] > 100)
-        # pcut = np.logical_and(self.photons[1] > 0, self.photons[1] < 1e4)
-        # self.photons = self.photons[:, pcut]
-
-        print('photons', len(self.photons[0]))
-
-        self.photons[2] += config['mec']['offset'][0]
-        self.photons[3] += config['mec']['offset'][1]
-
-        xcut = np.logical_and(self.photons[2] > 0, self.photons[2] < mp.array_size[1])
-        self.photons = self.photons[:, xcut]
-
-        print('photons', len(self.photons[0]))
-
-        ycut = np.logical_and(self.photons[3] > 0, self.photons[3] < mp.array_size[0])
-        self.photons = self.photons[:, ycut]
-
-        print('photons', len(self.photons[0]))
-
-        chosen = sample(range(len(self.photons[0])), config['num_point'])
-        self.photons = self.photons[:, chosen]
-
-        print('photons', len(self.photons[0]))
-
-        self.photons = [self.photons.T]
-
         self.display_2d_hists = input.MedisObs.display_2d_hists
+        self.numobj = 1
+        self.medis_cache = iop.testdir
 
+        self.photons = np.empty((0, 4))
+
+        for filename in filenames:
+            iop.photonlist = os.path.join(config['working_dir'], filename)
+
+            cam = Camera(usesave=False, product='photons')
+            cam.load_photontable()  # don't give it option to create photons
+
+            photons = cam.photons
+
+            print('photons', len(photons[0]))
+
+            tcut = np.logical_and(photons[0] > 0, photons[0] < 11)
+            photons = photons[:, tcut]
+
+            print('photons', len(photons[0]))
+
+            photons[1] = cam.phase_cal(photons[1]/1e10)  #angstroms
+            pcut = np.logical_and(photons[1] > -250, photons[1] < 0)
+            photons = photons[:, pcut]
+
+            # pcut = np.logical_and(photons[1] < 1e5, photons[1] > 100)
+            # pcut = np.logical_and(photons[1] > 0, photons[1] < 1e4)
+            # photons = photons[:, pcut]
+
+            print('photons', len(photons[0]))
+
+            photons[2] += config['mec']['offset'][0]
+            photons[3] += config['mec']['offset'][1]
+
+            xcut = np.logical_and(photons[2] > 0, photons[2] < mp.array_size[1])
+            photons = photons[:, xcut]
+
+            print('photons', len(photons[0]))
+
+            ycut = np.logical_and(photons[3] > 0, photons[3] < mp.array_size[0])
+            photons = photons[:, ycut]
+
+            print('photons', len(photons[0]))
+
+            chosen = sample(range(len(photons[0])), int(np.ceil(config['num_point']/len(filenames))))
+            photons = photons[:, chosen]
+
+            print('photons', len(photons[0]))
+
+            photons = photons.T
+
+            self.photons = np.concatenate((self.photons, photons), axis=0)
+
+        self.photons = [self.photons]  # give it an extra dim to be plot by disp2dhist
         if debug:
             self.display_2d_hists(self)
 
 
-def make_input(config, inject_fake_comp=True):
+def make_input(config, inject_fake_comp=False):
     if inject_fake_comp:
         d = input.Data(config)
 
-    outfiles = np.append(config['trainfiles'], config['testfiles'])
+    # outfiles = np.append(config['trainfiles'], config['testfiles'])
+    outfiles = config['mec']['evalfiles']
 
     debugs = [False] * config['data']['num_indata']
     debugs[0] = True

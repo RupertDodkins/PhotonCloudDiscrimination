@@ -385,7 +385,7 @@ def load_h5(h5_filename):
     smpw = f['smpw'][:]
     return (data, label, smpw)
 
-def load_dataset(in_files, batch_size):
+def load_dataset(in_files):
     for in_file in in_files:
         assert os.path.isfile(in_file), '[error] dataset path not found'
 

@@ -76,7 +76,7 @@ def train():
             optimizer.zero_grad()
 
             # Get new data
-            coords, labels = load_dataset(config['trainfiles'][i:i+1], config['train']['batch_size'])
+            coords, labels = load_dataset(config['trainfiles'][i:i+1])
             input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
             # Forward
@@ -103,13 +103,13 @@ def train():
         test(net, device)
 
         # Saving and loading a network
-        torch.save(net.state_dict(), 'test.pth')
+        torch.save(net.state_dict(), config['savepath'])
 
 def test(net, device):
     net.eval()
     with torch.no_grad():
         for i in range(int(config['data']['num_indata'] * config['data']['test_frac'])):
-            coords, labels = load_dataset(config['testfiles'][i:i + 1], config['train']['batch_size'])
+            coords, labels = load_dataset(config['testfiles'][i:i + 1])
             input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
             # params_to_train = copy.deepcopy([mp[1] for mp in net.named_parameters()])

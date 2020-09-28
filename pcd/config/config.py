@@ -40,7 +40,7 @@ yaml.add_constructor('!join', join)
 # load config.yml
 with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.yml"), 'r') as stream:
     try:
-        config = yaml.load(stream)
+        config = yaml.load(stream, Loader=yaml.Loader)
     except yaml.YAMLError as exc:
         config = exc
 
@@ -67,6 +67,8 @@ testfile, extension = config['testfiles'].split('{id}')
 config['testfiles']  = [testfile + str(l) + extension for l in range(num_test)]
 trainfile, extension = config['trainfiles'].split('{id}')
 config['trainfiles'] = [trainfile + str(l) + extension for l in range(num_train)]
+evalfile, extension = config['mec']['evalfiles'].split('{id}')
+config['mec']['evalfiles'] = [evalfile + str(l) + extension for l in range(config['mec']['numeval'])]
 
 # load run.yml
 with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "run.yml"), 'r') as stream:

@@ -78,8 +78,8 @@ def train():
         metrics=[keras.metrics.SparseCategoricalAccuracy(),]
     )
 
-    train_ds = load_dataset(config['trainfiles'][:3], config['train']['batch_size'])
-    val_ds = load_dataset(config['testfiles'], config['train']['batch_size'])
+    train_ds = load_dataset(config['trainfiles'][:3])
+    val_ds = load_dataset(config['testfiles'])
 
     # model.run_eagerly = True
     model.fit(
