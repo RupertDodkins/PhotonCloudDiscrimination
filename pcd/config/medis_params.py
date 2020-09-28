@@ -4,67 +4,51 @@ MEDIS configuration file
 """
 
 import numpy as np
-from medis.params import sp, ap, tp, iop, mp
-from config.config import config
+from medis.params import sp, ap, tp, iop, mp, atmp
+from pcd.config.config import config
 
-# def update_params():
 iop.datadir = config['working_dir']
-iop.set_atmosdata('200102')
-iop.set_aberdata('Subaru')
-iop.set_testdir('')
 
-ap.sample_time = 0.05
-ap.numframes = 100
-sp.uniform_flux = False
-sp.show_wframe = False
-sp.save_obs = True
-sp.show_cube = False
-sp.num_processes = 1
-sp.save_fields = False
-sp.save_ints = True
-sp.cont_save = False
-# sp.save_locs = ['deformable_mirror', 'detector']
+sp.sample_time = 0.5
+sp.numframes = 20
+sp.grid_size = 512
+sp.num_processes = 7
+sp.beam_ratio = 0.15
+sp.debug = False
+sp.quick_detect = False
+sp.save_sim_object = False
+sp.save_to_disk = True
+sp.checkpointing = 10
+sp.num_processes = 3
 
 ap.companion = True
-ap.star_photons_per_s = int(1e3)
-ap.grid_size = 512
-tp.beam_ratio = 0.25
-# ap.contrast = 10**np.array([-3.5, -4, -4.5, -5] * 2)
-# ap.lods = [[2.5,0], [0,3], [-3.5,0], [0,-4], [4.5,0], [0,5], [-5.5,0],[0,-6]]
-# ap.nwsamp = 8
-# ap.w_bins = 16
-ap.contrast = [10**-2]
-ap.lods = [[2.5,0]]
-ap.nwsamp = 3
-ap.w_bins = 8
 
-# sp.save_locs = np.empty((0, 1))
+if config['model'] != 'minkowski':  # minkowski only has one pointcloud per input data so requires less photons
+    ap.star_flux = 1e7 * config['num_point']/65536.
+else:
+    ap.star_flux = 1e5 * config['num_point']/65536.  # 1e5 flux is sufficient for a 65536 point point-cloud
+ap.spectra = None
+ap.contrast = [10**-2]
+ap.companion_xy = [[2.5,0]]
+ap.n_wvl_init = 4
+ap.n_wvl_final = 8
+ap.wvl_range = np.array([800, 1500]) / 1e9
+
+atmp.model = 'single'
+
 tp.obscure = False
-tp.satelite_speck = False
-tp.diam = 8.
+tp.satelite_speck['apply'] = True
+tp.satelite_speck['amp'] = 12e-10
+tp.entrance_d = 8.
 tp.use_ao = True
-tp.include_tiptilt = False
 tp.ao_act = 50
-tp.platescale = 10  # mas
-tp.detector = 'MKIDs'  #'ideal'
 tp.use_atmos = True
-tp.use_zern_ab = False
-tp.occulter_type = 'Gaussian'
-tp.aber_params = {'CPA': True,
-                  'NCPA': True,
-                  'QuasiStatic': False,  # or Static
-                  'Phase': True,
-                  'Amp': False,
-                  'n_surfs': 4,
-                  'OOPP': False}  # [16,8,4,16]}#False}#
-tp.aber_vals = {'a': [5e-15, 1e-16],  # 'a': [5e-17, 1e-18],
-                'b': [0.2, 0.02],
-                'c': [3.1, 0.5],
-                'a_amp': [0.05, 0.01]}
-tp.piston_error = False
-ap.band = np.array([800, 1500])
-tp.rot_rate = 0  # deg/s
-tp.pix_shift = [[0, 0]]
+tp.prescription = 'general_telescope'
+tp.cg_type = 'Solid'
+tp.rot_rate = 9  # 9  # deg/s
+tp.pix_shift = [0, 0]
 
 mp.array_size = np.array([150,150])
-mp.wavecal_coeffs = [1./6, -250]
+mp.wavecal_coeffs = [1.e9 / 6, -250]
+mp.hot_counts = False
+mp.dark_counts = False
