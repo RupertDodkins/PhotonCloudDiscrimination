@@ -8,8 +8,6 @@ from matplotlib.colors import LogNorm
 import random
 import h5py
 
-
-# from medis.medis_main import RunMedis
 from medis.telescope import Telescope
 from medis.MKIDS import Camera
 from medis.utils import dprint
@@ -20,9 +18,7 @@ from pcd.config.config import config
 import utils
 from evaluate import trans_p2c
 
-# sp.numframes = 5
-
-class Obsfile():
+class MedisObs():
     """ Gets the photon lists from MEDIS """
     def __init__(self, name, contrast, lods, spectra, debug=False):
         iop.update_testname(str(name))
@@ -177,7 +173,7 @@ class Obsfile():
                     axes[r,c].imshow(H[r,c], norm=LogNorm())
         plt.show()
 
-class Class():
+class NnReform():
     """ Creates the input data in the NN input format """
     def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None):
         self.photons = photons #[self.normalise_photons(photons[o]) for o in range(config['classes'])]
@@ -393,7 +389,7 @@ class Class():
         plt.show(block=True)
 
 class Data():
-    """ Infers the sequence of parameters to pass to each Obsfile """
+    """ Infers the sequence of parameters to pass to each MedisObs """
     def __init__(self, config=None):
         self.numobj = config['data']['num_indata']+1
         self.contrasts, self.lods = self.observation_params()
@@ -437,7 +433,7 @@ def make_input(config):
                 contrast = [d.contrasts[i]]
                 lods = [d.lods[i]]
                 spectra = [config['data']['star_spectra'], config['data']['planet_spectra'][i]]
-                obs = Obsfile(f'{i}', contrast, lods, spectra)
+                obs = MedisObs(f'{i}', contrast, lods, spectra)
                 photons = obs.photons
 
             print([photon.shape for photon in photons])
@@ -445,7 +441,7 @@ def make_input(config):
             print(i, outfile, type)
             # class_photons = [photons[0], photons[i+1]]
 
-            c = Class(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
+            c = NnReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
             c.process_photons()
             c.save_class()
             # if config['data']['num_augs'] > 0:

@@ -24,13 +24,13 @@ import utils
 mp.array_size = [144,140]  # the size of mec arrays
 # ap.wvl_range = np.array([0,1500])/1e9
 
-class Obsfile():
+class MecObs():
     """ Gets the photon lists from photontables """
     def __init__(self, filename, debug=False):
         iop.update_testname(config['working_dir'])
         self.medis_cache = iop.testdir
         iop.photonlist = os.path.join(config['working_dir'], filename)
-        self.numobj = 2
+        self.numobj = 1
 
         cam = Camera(usesave=False, product='photons')
         cam.load_photontable()  # don't give it option to create photons
@@ -54,8 +54,8 @@ class Obsfile():
 
         print('photons', len(self.photons[0]))
 
-        self.photons[2] += 10
-        self.photons[3] += -30
+        self.photons[2] += config['mec']['offset'][0]
+        self.photons[3] += config['mec']['offset'][1]
 
         xcut = np.logical_and(self.photons[2] > 0, self.photons[2] < mp.array_size[1])
         self.photons = self.photons[:, xcut]
@@ -72,15 +72,9 @@ class Obsfile():
 
         print('photons', len(self.photons[0]))
 
-        # arg_planet_photons = self.photons[1] > -100
-        #
-        # self.photons = self.photons.T
-        #
-        # self.photons = [self.photons[~arg_planet_photons], self.photons[arg_planet_photons]]
-
         self.photons = [self.photons.T]
 
-        self.display_2d_hists = data.Obsfile.display_2d_hists
+        self.display_2d_hists = data.MedisObs.display_2d_hists
 
         if debug:
             self.display_2d_hists(self)
@@ -97,7 +91,7 @@ def make_input(config, inject_fake_comp=True):
     outfiles = np.append(config['trainfiles'], config['testfiles'])
 
     debugs = [False] * config['data']['num_indata']
-    # debugs[0] = True
+    debugs[0] = True
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)
@@ -110,14 +104,14 @@ def make_input(config, inject_fake_comp=True):
     print('train_types', train_types)
     for i, outfile, train_type in zip(range(config['data']['num_indata']), outfiles, train_types):
         if not os.path.exists(outfile):
-            obs = Obsfile(config['mec'])
+            obs = MecObs(config['mec']['h5s'])
             photons = obs.photons
 
             if inject_fake_comp:
                 contrast = [d.contrasts[i]]
                 lods = [d.lods[i]]
                 spectra = [config['data']['star_spectra'], config['data']['planet_spectra'][i]]
-                obs = data.Obsfile(f'{i}', contrast, lods, spectra)
+                obs = data.MedisObs(f'{i}', contrast, lods, spectra)
                 planet_photons = obs.photons[1]
                 photons = [photons[0], planet_photons]
 
@@ -126,7 +120,7 @@ def make_input(config, inject_fake_comp=True):
             print(i, outfile, type)
             # class_photons = [photons[0], photons[i+1]]
 
-            c = data.Class(photons, outfile, train_type=train_type, debug=debugs[i],
+            c = data.NnReform(photons, outfile, train_type=train_type, debug=debugs[i],
                            rm_input=obs.medis_cache)
             c.process_photons()
             c.save_class()
