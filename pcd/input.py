@@ -378,6 +378,29 @@ class Data():
 
         return contrasts, lods
 
+def load_h5(h5_filename):
+    f = h5py.File(h5_filename)
+    data = f['data'][:]
+    label = f['label'][:]
+    smpw = f['smpw'][:]
+    return (data, label, smpw)
+
+def load_dataset(in_files, batch_size):
+    for in_file in in_files:
+        assert os.path.isfile(in_file), '[error] dataset path not found'
+
+    shuffle_buffer = 1000
+
+    in_data = np.empty((0, config['num_point'], config['dimensions']))
+    in_label = np.empty((0, config['num_point']))
+    class_weights = []
+    for in_file in in_files:
+        print(f'loading {in_file}')
+        file_in_data, file_in_label, class_weights = load_h5(in_file)
+        in_data = np.concatenate((in_data, file_in_data), axis=0)
+        in_label = np.concatenate((in_label, file_in_label), axis=0)
+
+    return in_data, in_label
 
 def make_input(config):
     d = Data(config)
