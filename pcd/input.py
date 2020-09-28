@@ -31,14 +31,8 @@ class MedisObs():
         ap.contrast = contrast
         ap.companion_xy = lods
         ap.spectra = spectra
-        # self.numobj = config['data']['num_indata']+1
-        self.numobj = len(contrast)+1
 
-        # if not os.path.exists(iop.obs_table):
-        #     gpd.run_medis()
-        # self.photons = pipe.read_obs()
-        # sim = RunMedis(name=name, product='fields')
-        # sim()  # generate all the fields
+        self.numobj = len(contrast)+1
 
         # instantiate but don't generate data yet
         tel = Telescope(usesave=sp.save_to_disk)
@@ -75,18 +69,11 @@ class MedisObs():
                 t =  np.arctan2(photons[3],photons[2])
                 photons[-2:] = np.array([r,t])
 
-                # photons[2], photons[3] = r * np.sin(t) + cam.array_size[1]/2, r * np.cos(t) + cam.array_size[0]/2
-
             self.photons.append(photons.T)
 
-
-        # if config['debug']:
-        # debug = False
         if debug:
-            # #     # self.display_raw_image()
-            # #     # self.display_raw_cloud()
             self.display_2d_hists()
-            # self.plot_stats()
+
         dprint(len(self.photons))
 
     def log_params(self):
@@ -261,13 +248,6 @@ class NnReform():
 
 
     def save_class(self):
-        # if self.type == 'test':
-        #     num_test = int(len(self.chunked_pids)*config['test_frac']/(1-config['test_frac']))
-        #     print('saveclass', len(self.chunked_pids), config['test_frac']/(1-config['test_frac']), num_test)
-        #     remove_inds = random.sample(range(len(self.chunked_pids)), num_test)
-        #     self.chunked_photons = self.chunked_photons[remove_inds]
-        #     self.chunked_pids = self.chunked_pids[remove_inds]
-
         if self.aug_ind:
             self.aug_input()
 
@@ -299,15 +279,10 @@ class NnReform():
         # self.data = self.data[:, :, [1, 3, 0, 2]]
 
         if self.debug:
-            # self.display_chunk_cloud()
             self.display_2d_hists()
-            # for i in range(len(self.data)):
-            #     self.data[i] = trans_p2c(self.data[i])
-            # self.display_2d_hists()
-            # plt.show(block=True)
 
         with h5py.File(self.outfile, 'w') as hf:
-            # hf.create_dataset('data', data=self.data[:-int(self.test_frac * num_input)])
+
             hf.create_dataset('data', data=self.data)
             hf.create_dataset('label', data=self.labels)
             if config['task'] == 'part_seg':
@@ -321,12 +296,6 @@ class NnReform():
                 dprint(self.rm_input)
             except OSError as e:
                 print("Error: %s - %s." % (e.filename, e.strerror))
-
-        # with h5py.File(self.testfile, 'w') as hf:
-        #     hf.create_dataset('data', data=self.data[-int(self.test_frac * num_input):])
-        #     hf.create_dataset('label', data=self.labels[-int(self.test_frac * num_input):])
-        #     if config['task'] == 'part_seg':
-        #         hf.create_dataset('pid', data=self.pids[-int(self.test_frac * num_input):])
 
     def aug_input(self):
         rot_rate = 360. / (config['data']['aug_ratio'] + 1)
@@ -369,7 +338,6 @@ class NnReform():
             bins = [np.linspace(-1,1,50), np.linspace(-1,1,50), np.linspace(-1,1,150), np.linspace(-1,1,150)]
 
         coord = 'tpxy'
-        # coord = 'pytx'
 
         for o in range(self.num_classes):
             if ind:
