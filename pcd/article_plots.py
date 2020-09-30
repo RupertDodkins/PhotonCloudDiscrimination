@@ -13,7 +13,7 @@ from vip_hci.metrics import contrcurve
 from medis.params import ap, sp, mp
 from medis.plot_tools import grid
 
-from evaluate import load_meta, get_metric_distributions, confusion_matrix, trans_p2c
+from visualization import load_meta, get_metric_distributions, confusion_matrix, trans_p2c
 from pcd.config.config import config
 
 home = os.path.expanduser("~")
@@ -56,7 +56,7 @@ def get_reduced_images(ind=1):
                     adimsdi='double', ncomp=None, ncomp2=2, collapse='sum')
 
     reduced_images = np.array([[all_raw, star_raw, planet_raw], [all_pca, star_pca, planet_pca]])
-    grid(reduced_images, logZ=True, vlim=(1,50))  #, vlim=(1,70)
+    grid(reduced_images, logZ=False, vlim=(1,50))  #, vlim=(1,70)
 
         # with open(filename, 'wb') as handle:
             #     pickle.dump(reduced_images, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -158,8 +158,8 @@ def plot_3D_pointclouds():
 
 def get_photons(amount=1):
     print('amount = ', amount)
-    alldata = load_meta(amount=amount)
-    cur_seg, pred_seg_res, cur_data, trainbool = alldata[-amount]
+    alldata = load_meta(kind='pt_outputs', amount=amount)
+    cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-amount]
     del alldata
 
     metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
@@ -181,12 +181,18 @@ def get_photons(amount=1):
 def get_tess(ind=-1):
     all_photons, star_photons, planet_photons = get_photons(amount=-ind)
 
+    # all_photons, star_photons, planet_photons = all_photons[:,:-1], star_photons[:,:-1], planet_photons[:,:-1]
     if config['data']['trans_polar']:
         for photons in [all_photons, star_photons, planet_photons]:
             photons = trans_p2c(photons)
 
-    bins = [np.linspace(-1, 1, sp.numframes + 1), np.linspace(-1, 1, ap.n_wvl_final + 1),
-            np.linspace(-1, 1, mp.array_size[0]), np.linspace(-1, 1, mp.array_size[1])]
+    # bins = [np.linspace(-1, 1, sp.numframes + 1), np.linspace(-1, 1, ap.n_wvl_final + 1),
+    #         np.linspace(-1, 1, mp.array_size[0]), np.linspace(-1, 1, mp.array_size[1])]
+    # bins = [150] * 4
+    bins = [np.linspace(all_photons[:,0].min(), all_photons[:,0].max(), sp.numframes + 1),
+            np.linspace(all_photons[:,1].min(), all_photons[:,1].max(), ap.n_wvl_final + 1),
+            np.linspace(-200, 200, 150),
+            np.linspace(-700, 500, 150)]
 
     all_tess, edges = np.histogramdd(all_photons, bins=bins)
 
@@ -197,7 +203,7 @@ def get_tess(ind=-1):
     return all_tess, star_tess, planet_tess
 
 if __name__ == '__main__':
-    get_reduced_images(ind=2)
+    get_reduced_images(ind=-1)
     for i in range(0,25,5):
         get_reduced_images(ind=i)
     # plot_3D_pointclouds()
