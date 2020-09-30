@@ -12,19 +12,19 @@ dimensions: 4
 task: sem_seg
 classes: 2  # star=0, planet=1
 model: minkowski # models.pointnet2_sem_seg  #models.pointnet2_part_seg
-savepath: 'test.pth'
+savepath: !join [*WDIR, 'test95.pth']
 
 data:
-  num_indata: 2  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
+  num_indata: 40  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
   null_frac: 0.  # num of input data that are null (no planet photons)
-  test_frac: 0.5
+  test_frac: 0.25
   aug_ratio: 0  # For every 1 medis input duplicate and rotate it {aug_ratio} times
   medis_config: "medis_params.py"
-  angles: (0,359) #72,108,144,180,216,252,288,324]  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
-  lods: (1,4) #4,2,3,4,2,3,4,3] # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
-  contrasts: (-3,-5)   # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  angles: (0,360) #72,108,144,180,216,252,288,324]  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  lods: (2,4) #4,2,3,4,2,3,4,3] # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  contrasts: (-2,-3)   # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
   star_spectra: 6000
-  planet_spectra: (1000,3000) # length(num_indata) + 1
+  planet_spectra: (1000,1000) # length(num_indata) + 1
 #  num_augs: 4  # number of rotations to apply to each input
   time_diff: False
   trans_polar: False
@@ -36,12 +36,12 @@ train:
   gpu: 1
   num_point: *PN
   batch_size: 3
-  max_epoch: 5
+  max_epoch: 10
   wd: 0.
   log_dir: *WDIR
   data_dir: *WDIR
   outputs: !join [*WDIR, outputs.pkl]
-  layers: !join [*WDIR, layers.pkl]
+  pt_outputs: !join [*WDIR, pt_outputs.pkl]
   out_collapse: mean  # mean | argmax
   learning_rate: 0.0001  # 1e-5
   momentum: 0.9
