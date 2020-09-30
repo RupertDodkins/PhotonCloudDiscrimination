@@ -15,11 +15,11 @@ from examples.minkunet import MinkUNet34C, MinkUNet14A
 from examples.unet import UNet
 
 from pcd.config.config import config
-from pcd.visualization import tf_step
+from pcd.visualization import tf_step, pt_step
 from pcd.input import load_dataset
 
-if os.path.exists(config['train']['outputs']):
-    os.remove(config['train']['outputs'])
+if os.path.exists(config['train']['pt_outputs']):
+    os.remove(config['train']['pt_outputs'])
 
 def load_file(file_name):
     pcd = o3d.io.read_point_cloud(file_name)
@@ -29,7 +29,8 @@ def load_file(file_name):
 
 def reform_input(coords, labels, device):
     labels = np.int32(labels)
-    feats = np.array([[0., 0., 0., 0.], [1., 1., 1., 1.]])[labels]
+    # feats = np.array([[0., 0., 0., 0.], [1., 1., 1., 1.]])[labels]
+    feats = coords
 
     # coords = np.concatenate((coords, np.zeros((coords.shape[0], coords.shape[1], 1))), axis=2)
     #print(warning the batch num should be on left)
@@ -55,7 +56,8 @@ def reform_input(coords, labels, device):
     labels_pt = torch.from_numpy(labels).long().to(device)
 
     input_pt = ME.SparseTensor(feats_pt,
-                               coords=coords_pt
+                               coords=coords_pt,
+                               quantization_mode=ME.SparseTensorQuantizationMode.UNWEIGHTED_AVERAGE
                                ).to(device)
 
     return input_pt, labels_pt, coords, feats, labels
@@ -69,8 +71,9 @@ def train():
     device = torch.device('cuda')
     net = net.to(device)
 
-    optimizer = SGD(net.parameters(), lr=1e-2)
+    optimizer = SGD(net.parameters(), lr=1e-4)
     for epoch in range(config['train']['max_epoch']):
+        print('epoch: ', epoch)
         net.train()
         for i in range(int(config['data']['num_indata']*(1-config['data']['test_frac']))):
             optimizer.zero_grad()
@@ -87,9 +90,9 @@ def train():
 
             # Loss
             loss = criterion(output.F, labels_pt)
-            print('Iteration: ', i, ', Loss: ', loss.item())
 
-            tf_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), train=True)
+            if i % 5 == 0:
+                pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=True)
 
             # Gradient
             loss.backward()
@@ -100,12 +103,12 @@ def train():
             # print([params_to_train_after[i].mean() for i in range(len(params_to_train))])
             # print([params_to_train[i].mean() == params_to_train_after[i].mean() for i in range(len(params_to_train))])
 
-        test(net, device)
+        test(net, device, criterion)
 
         # Saving and loading a network
         torch.save(net.state_dict(), config['savepath'])
 
-def test(net, device):
+def test(net, device, criterion):
     net.eval()
     with torch.no_grad():
         for i in range(int(config['data']['num_indata'] * config['data']['test_frac'])):
@@ -117,10 +120,10 @@ def test(net, device):
 
             output = net(input_pt)
 
-            # loss = criterion(output.F, labels_pt)
-            # print('Iteration: ', i, ', Loss: ', loss.item())
+            loss = criterion(output.F, labels_pt)
 
-            tf_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), train=False)
+            # if i % 10 == 0:
+            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=False)
 
             # params_to_train_after = copy.deepcopy([mp[1] for mp in net.named_parameters()])
             # print([params_to_train[i].mean() for i in range(len(params_to_train))])

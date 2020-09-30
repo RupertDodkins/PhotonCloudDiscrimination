@@ -127,10 +127,10 @@ def get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True):
     false_pos = np.logical_and(cur_seg == 0, np.round(pred_seg_res) == 1)
     if include_true_neg:
         metrics = [true_pos, false_neg, false_pos, true_neg]
-        scores = np.array([np.sum(true_pos), np.sum(false_pos)]) / np.sum(cur_seg == 1)
-        print(scores)
-        scores = np.array([np.sum(true_neg), np.sum(false_neg)]) / np.sum(cur_seg == 0)
-        print(scores)
+        # scores = np.array([np.sum(true_pos), np.sum(false_pos)]) / np.sum(cur_seg == 1)
+        # print(scores)
+        # scores = np.array([np.sum(true_neg), np.sum(false_neg)]) / np.sum(cur_seg == 0)
+        # print(scores)
     else:
         metrics = [true_pos, false_neg, false_pos]
 
@@ -249,7 +249,7 @@ def update_axes():
     pass
 
 def initialize_metrics(metric_types):
-    values = [np.empty(0)]*6
+    values = [np.empty(0)]*8
 
     metrics = {}
     metrics['train'] = dict(zip(metric_types, values))
@@ -260,7 +260,7 @@ def initialize_metrics(metric_types):
 
     return metrics
 
-def update_metrics(cur_seg, pred_seg_res, train, metrics):
+def update_metrics(cur_seg, pred_seg_res, train, metrics, loss=-1):
     metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
 
     # np.float64 so ZeroDivideErrors -> np.nan
@@ -273,11 +273,13 @@ def update_metrics(cur_seg, pred_seg_res, train, metrics):
 
     kind = 'train' if train else 'test'
     metrics[kind]['True Positive'] = np.append(metrics[kind]['True Positive'], true_pos / tot_pos)
-    metrics[kind]['False Negative'] = np.append(metrics[kind]['False Negative'], false_neg / tot_neg)
-    metrics[kind]['False Positive'] = np.append(metrics[kind]['False Positive'], false_pos / tot_pos)
+    metrics[kind]['False Negative'] = np.append(metrics[kind]['False Negative'], false_neg / tot_pos)
+    metrics[kind]['False Positive'] = np.append(metrics[kind]['False Positive'], false_pos / tot_neg)
     metrics[kind]['True Negative'] = np.append(metrics[kind]['True Negative'], true_neg / tot_neg)
     metrics[kind]['Recall'] = np.append(metrics[kind]['Recall'], true_pos / (true_pos+false_neg))
     metrics[kind]['Precision'] = np.append(metrics[kind]['Precision'], true_pos / (true_pos + false_pos))
+    metrics[kind]['Accuracy'] = np.append(metrics[kind]['Accuracy'], (true_pos+true_neg) / (tot_pos+tot_neg))
+    metrics[kind]['Loss'] = np.append(metrics[kind]['Loss'], loss)
 
     return metrics
 
@@ -300,26 +302,29 @@ def onetime_metric_streams(start=0, end=10):
     :return:
     """
 
-    import tensorflow.compat.v1 as tf
-    tf.disable_v2_behavior()
-    import glob
+    # import tensorflow.compat.v1 as tf
+    # tf.disable_v2_behavior()
+    # import glob
 
     num_train, num_test = num_input()
-    alldata = load_meta()
+    alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
 
-    metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall', 'Precision']
-    axes = initialize_axes(metric_types+['Loss','Accuracy'])
+    # metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall', 'Precision']
+    metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall', 'Precision',
+                    'Accuracy', 'Loss']
+    # axes = initialize_axes(metric_types+['Loss','Accuracy'])
+    axes = initialize_axes(metric_types)
     metrics = initialize_metrics(metric_types)
 
     for step in range(start, end+1):
         dprint(step)
 
-        cur_seg, pred_seg_res, _, train = alldata[step]
+        cur_seg, pred_seg_res, _, loss, train = alldata[step]
         dprint(train)
 
-        metrics = update_metrics(cur_seg, pred_seg_res, train, metrics)
+        metrics = update_metrics(cur_seg, pred_seg_res, train, metrics, loss)
 
     for kind in ['train', 'test']:
         # if kind == 'train':
@@ -330,20 +335,21 @@ def onetime_metric_streams(start=0, end=10):
         #     epochs = np.arange(0, num_test, 0.5)
 
         # get accuracies and losses
-        dir = f"{config['working_dir']}/{kind}"
-        # lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-1]
-        lastfile = sorted(glob.glob(f'{dir}/*.glados*'), key=os.path.getmtime)[-1]
-        print(dir, lastfile)
-        # lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-2]
-        print(lastfile)
-        losses, accuracies = [], []
-        from tensorflow.python.summary.summary_iterator import summary_iterator
-        for e in tf.train.summary_iterator(lastfile):
-            for v in e.summary.value:
-                if v.tag == 'loss' or v.tag == 'batch_loss':
-                    losses.append(v.simple_value)
-                elif v.tag == 'accuracy' or v.tag == 'batch_sparse_categorical_accuracy':
-                    accuracies.append(v.simple_value)
+        # dir = f"{config['working_dir']}/{kind}"
+        # # lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-1]
+        # lastfile = sorted(glob.glob(f'{dir}/*.glados*'), key=os.path.getmtime)[-1]
+        # print(dir, lastfile)
+        # # lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-2]
+        # print(lastfile)
+        # losses, accuracies = [], []
+        # from tensorflow.python.summary.summary_iterator import summary_iterator
+        # for e in tf.train.summary_iterator(lastfile):
+        #     for v in e.summary.value:
+        #         if v.tag == 'loss' or v.tag == 'batch_loss':
+        #             losses.append(v.simple_value)
+        #         elif v.tag == 'accuracy' or v.tag == 'batch_sparse_categorical_accuracy':
+        #             accuracies.append(v.simple_value)
+
 
         # get the number of x values
         num = len(metrics[kind][metric_types[0]])
@@ -352,17 +358,17 @@ def onetime_metric_streams(start=0, end=10):
         if kind == 'test':
             epochs = np.linspace(0, num * config['train']['cache_freq']/int(num_test/config['train']['batch_size']), num)
 
-        dprint(kind, end+1, len(epochs), len(metrics[kind][metric_types[0]]), losses)
-        for ax, metric_key in zip(axes[:-2], metric_types):
+        # dprint(kind, end+1, len(epochs), len(metrics[kind][metric_types[0]]), losses)
+        for ax, metric_key in zip(axes, metric_types):
             metrics[kind]['lines'].append(ax.plot(epochs, metrics[kind][metric_key], c=metrics[kind]['color'],
                                                   label=kind))
 
-        # sometimes losses
-        try:
-            axes[-2].plot(epochs, losses[:len(epochs)], c=metrics[kind]['color'], label=kind)
-            axes[-1].plot(epochs, accuracies[:len(epochs)], c=metrics[kind]['color'], label=kind)
-        except ValueError:
-            print(f'epochs and losses wrong length ?! {len(epochs)}, {len(losses)} respectively')
+        # # sometimes losses
+        # try:
+        #     axes[-2].plot(epochs, losses[:len(epochs)], c=metrics[kind]['color'], label=kind)
+        #     axes[-1].plot(epochs, accuracies[:len(epochs)], c=metrics[kind]['color'], label=kind)
+        # except ValueError:
+        #     print(f'epochs and losses wrong length ?! {len(epochs)}, {len(losses)} respectively')
     axes[2].legend()
 
     plt.show(block=True)
@@ -406,7 +412,6 @@ def get_range_inds(start, end, allsteps):
     return start, end
 
 def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos):
-    print('tot_pos', tot_pos, tot_pos==0.0)
     if tot_pos == 0.0:
         conf = ('      +------+\n'
                 '     1| %.2f |\n'
@@ -481,7 +486,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
 
     assert end != 0
     # assert jump >= config['train']['cache_freq']
-    alldata = load_meta()
+    alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
     dprint(start, end)
@@ -491,7 +496,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
                                  norm=LogNorm())
 
     if config['data']['quantize']:
-        _,_, cur_data, _ = alldata[0]
+        _,_, cur_data, _, _ = alldata[0]
         bins = [np.linspace(np.min(cur_data[:,0]),np.max(cur_data[:,0]), 100)] * 4
     else:
         bins = [np.linspace(-1, 1, 100) * 1e6] * 4
@@ -503,7 +508,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     # dim_pairs = np.array(dim_pairs)[[1, 3, 0, 2]]
 
     for step in range(start, end+1, jump):
-        cur_seg, pred_seg_res, cur_data, trainbool = alldata[step]
+        cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[step]
 
         metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
         true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
@@ -722,6 +727,32 @@ def trans_p2c(photons):
 
     return photons
 
+def pt_step(input_data, input_label, pred_val, loss, train=True):
+    pred_val = np.argmax(pred_val, axis=-1)
+    with open(config['train']['pt_outputs'], 'ab') as handle:
+        field_tup = (input_label, pred_val, input_data, loss, train)
+        pickle.dump(field_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    pos = input_label == 1
+    neg = input_label == 0
+
+    true_pos = int(np.sum(np.logical_and(pos, np.round(pred_val) == 1)))
+    false_pos = int(np.sum(np.logical_and(neg, np.round(pred_val) == 1)))
+    true_neg = int(np.sum(np.logical_and(neg, np.round(pred_val) == 0)))
+    false_neg = int(np.sum(np.logical_and(pos, np.round(pred_val) == 0)))
+    conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
+
+    print('true_pos: %f' % (true_pos))
+    print('true_neg: %f' % (true_neg))
+    print('false_pos: %f' % (false_pos))
+    print('false_neg: %f' % (false_neg))
+    print(conf)
+    try:
+        print('Precision: %f' % (true_pos / (true_pos + false_pos)))
+        print('Recall: %f' % (true_pos / (true_pos + false_neg)))
+    except ZeroDivisionError:
+        pass
+
 def tf_step(input_data, input_label, pred_val, train=True):
     """ Get values of tensors to save them and read by metric_tesseracts """
 
@@ -734,7 +765,7 @@ def tf_step(input_data, input_label, pred_val, train=True):
     if not isinstance(train, bool):
         train = train.numpy()
 
-    if pred_val.shape[-1] > 1:
+    if len(pred_val.shape) > 1:
         pred_val = np.argmax(pred_val, axis=-1)
 
     with open(config['train']['outputs'], 'ab') as handle:
@@ -744,10 +775,10 @@ def tf_step(input_data, input_label, pred_val, train=True):
     pos = input_label == 1
     neg = input_label == 0
 
-    true_pos = int(np.sum(np.logical_and(pos, np.round(pred_val) == 1)))  # /float(pos)
-    false_pos = int(np.sum(np.logical_and(neg, np.round(pred_val) == 1)))  # /float(pos)
-    true_neg = int(np.sum(np.logical_and(neg, np.round(pred_val) == 0)))  # /float(neg)
-    false_neg = int(np.sum(np.logical_and(pos, np.round(pred_val) == 0)))  # /float(neg)
+    true_pos = int(np.sum(np.logical_and(pos, np.round(pred_val) == 1)))
+    false_pos = int(np.sum(np.logical_and(neg, np.round(pred_val) == 1)))
+    true_neg = int(np.sum(np.logical_and(neg, np.round(pred_val) == 0)))
+    false_neg = int(np.sum(np.logical_and(pos, np.round(pred_val) == 0)))
     conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos,
                             true_pos + false_neg)
 

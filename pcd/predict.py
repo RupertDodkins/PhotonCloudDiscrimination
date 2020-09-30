@@ -21,7 +21,7 @@ from examples.unet import UNet
 from pcd.config.config import config
 from pcd.input import load_dataset
 from pcd.train3 import reform_input
-from pcd.visualization import tf_step
+from pcd.visualization import pt_step
 
 
 def predict():
@@ -31,14 +31,18 @@ def predict():
     net.load_state_dict(torch.load(config['savepath']))
     net.eval()
 
-    with torch.no_grad():
-        for evalfile in config['mec']['evalfiles']:
-            coords, labels = load_dataset([evalfile])
-            input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
+    for evalfile in config['mec']['evalfiles']:
+        coords, labels = load_dataset([evalfile])
+        input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
+        with torch.no_grad():
             output = net(input_pt)
+        #     logits = output.slice(input_pt)
+        # _, pred = logits.max(1)
+        # pred = pred.cpu().numpy()
+        pred = output.F.cpu().detach().numpy()
 
-            tf_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), train=False)
+        pt_step(coords, np.int_(labels), pred, -1, train=False)
 
 if __name__ == '__main__':
     predict()
