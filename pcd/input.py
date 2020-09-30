@@ -385,20 +385,21 @@ def load_h5(h5_filename):
     smpw = f['smpw'][:]
     return (data, label, smpw)
 
-def load_dataset(in_files):
+def load_dataset(in_files, shuffle=False):
     for in_file in in_files:
         assert os.path.isfile(in_file), '[error] dataset path not found'
 
-    shuffle_buffer = 1000
-
     in_data = np.empty((0, config['num_point'], config['dimensions']))
     in_label = np.empty((0, config['num_point']))
-    class_weights = []
+
     for in_file in in_files:
         print(f'loading {in_file}')
         file_in_data, file_in_label, class_weights = load_h5(in_file)
         in_data = np.concatenate((in_data, file_in_data), axis=0)
         in_label = np.concatenate((in_label, file_in_label), axis=0)
+
+    if shuffle:
+        raise NotImplementedError
 
     return in_data, in_label
 
@@ -416,7 +417,10 @@ def make_input(config):
     aug_inds[::config['data']['aug_ratio']+1] = 0  # eg [0,1,2,3,0,5,6,7,0,9,10,11,...] when aug_ratio == 3
 
     for i, outfile, train_type, aug_ind in zip(range(config['data']['num_indata']), outfiles, train_types, aug_inds):
-        if not os.path.exists(outfile):
+        print(f'Creating outfile {outfile} ...')
+        if os.path.exists(outfile):
+            print('Already exists')
+        else:
             if not aug_ind:  # any number > 0
                 contrast = [d.contrasts[i]]
                 lods = [d.lods[i]]
