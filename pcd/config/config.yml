@@ -1,7 +1,5 @@
 debug: True
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-#pcd_data: &DIR /mnt/data0/dodkins/mec/20200729/HR8799/
-#working_dir: &WDIR !join [*DIR, stare/]  # concat DIR with that suffix and store as WDIR
 working_dir: &WDIR !join [*DIR, 200928b/]  # concat DIR with that suffix and store as WDIR
 overwrite_cache: False
 pointnet_version: 2
@@ -27,34 +25,35 @@ data:
   planet_spectra: (1000,1000) # length(num_indata) + 1
 #  num_augs: 4  # number of rotations to apply to each input
   time_diff: False
-  trans_polar: False
-  normalize: False
+#  trans_polar: False
+#  normalize: False
   quantize: True
   batch_coords: True
 
 train:
   gpu: 1
   num_point: *PN
-  batch_size: 3
+  batch_size: 3  # todo use
   max_epoch: 10
   wd: 0.
   log_dir: *WDIR
   data_dir: *WDIR
   outputs: !join [*WDIR, outputs.pkl]
   pt_outputs: !join [*WDIR, pt_outputs.pkl]
-  out_collapse: mean  # mean | argmax
-  learning_rate: 0.0001  # 1e-5
-  momentum: 0.9
-  optimizer: adam
-  decay_step: 500 #300000
-  decay_rate: 0.5
-
-  cache_freq: 10
-  num_train_batch: 5  # load batches of train data with this size on each cycle in train()
-  num_test_batch: 2  # load batches of train data with this size on each cycle in train()
+  learning_rate: 0.0001  # 1e-5   todo use
+  cache_freq: 10  # todo use
+#  out_collapse: mean  # mean | argmax  todo confirm and delete these options under new pytorch system
+#  momentum: 0.9
+#  optimizer: adam
+#  decay_step: 500 #300000
+#  decay_rate: 0.5
+#  num_train_batch: 5  # load batches of train data with this size on each cycle in train()
+#  num_test_batch: 2  # load batches of train data with this size on each cycle in train()
 
 mec:
-  h5s: [1596112950.h5, 1596113220.h5, 1596113490.h5, 1596113760.h5, 1596114030.h5]
-  offset: [10, -50]
+  dark_data: &DDIR /mnt/data0/dodkins/mec/20200731/Hip5319/dither_2/drizzled_h5s/
+  h5s: # [1596290345.h5, 1596290351.h5, ...] or leave blank for all in folder
+  dithered: True  # use the RA/Dec columns and align in time vs use x/y from beammap with no time adjusment
+  offset: [90, -50]  # area to crop
   numeval: 1
-  evalfiles: !join [*WDIR, 'evalfile_{id}.h5']
+  evalfiles: !join [*DDIR, 'evalfile_{id}.h5']
