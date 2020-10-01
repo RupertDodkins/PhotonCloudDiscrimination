@@ -182,9 +182,9 @@ def get_tess(ind=-1):
     all_photons, star_photons, planet_photons = get_photons(amount=-ind)
 
     # all_photons, star_photons, planet_photons = all_photons[:,:-1], star_photons[:,:-1], planet_photons[:,:-1]
-    if config['data']['trans_polar']:
-        for photons in [all_photons, star_photons, planet_photons]:
-            photons = trans_p2c(photons)
+    # if config['data']['trans_polar']:
+    #     for photons in [all_photons, star_photons, planet_photons]:
+    #         photons = trans_p2c(photons)
 
     # bins = [np.linspace(-1, 1, sp.numframes + 1), np.linspace(-1, 1, ap.n_wvl_final + 1),
     #         np.linspace(-1, 1, mp.array_size[0]), np.linspace(-1, 1, mp.array_size[1])]

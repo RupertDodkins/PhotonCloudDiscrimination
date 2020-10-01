@@ -20,7 +20,7 @@ from visualization import trans_p2c
 
 class MedisObs():
     """ Gets the photon lists from MEDIS """
-    def __init__(self, name, contrast, lods, spectra, debug=False):
+    def __init__(self, name, contrast, lods, spectra, debug=True):
         iop.update_testname(str(name))
         self.medis_cache = iop.testdir
         if contrast == [0.0]:
@@ -107,14 +107,17 @@ class MedisObs():
         plt.show(block=True)
 
     def display_2d_hists(self):
-        fig, axes = utils.init_grid(rows=self.numobj, cols=4)
+        fig, axes = utils.init_grid(rows=self.numobj, cols=4, figsize=(16,4*self.numobj))
 
-        bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-250, 0, 50), range(mp.array_size[0]),
-                range(mp.array_size[1])]
+        if config['mec']['dithered']:
+            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-150, 0, 50), 150, 150]
+        else:
+            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-250, 0, 50), range(mp.array_size[0]),
+                    range(mp.array_size[1])]
 
-        if config['data']['trans_polar']:
-            bins[2] = np.linspace(0, np.sqrt(((mp.array_size[0]/2)**2) * 2), mp.array_size[0])
-            bins[3] = np.linspace(-np.pi,np.pi, mp.array_size[1])
+        # if config['data']['trans_polar']:
+        #     bins[2] = np.linspace(0, np.sqrt(((mp.array_size[0]/2)**2) * 2), mp.array_size[0])
+        #     bins[3] = np.linspace(-np.pi,np.pi, mp.array_size[1])
 
         coord = 'tpxy'
         for o in range(self.numobj):
@@ -127,8 +130,8 @@ class MedisObs():
                 if pair in [['x','p'], ['x','t']]:
                     image = image.T
                     inds = inds[1], inds[0]
-                axes[o,p].imshow(image, aspect='auto',
-                                 extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
+                axes[o,p].imshow(image, aspect='auto')#,
+                                 # extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
 
         plt.show(block=True)
 
@@ -163,7 +166,7 @@ class MedisObs():
 
 class NnReform():
     """ Creates the input data in the NN input format """
-    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None):
+    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None, dithered=False):
         self.photons = photons #[self.normalise_photons(photons[o]) for o in range(config['classes'])]
         self.outfile = outfile
         self.prefix = outfile.split('.')[0]
@@ -171,6 +174,7 @@ class NnReform():
         self.aug_ind = aug_ind
         self.debug = debug
         self.rm_input = rm_input
+        self.dithered = dithered
 
         self.num_point = config['num_point']
         # self.test_frac = config['data']['test_frac']
@@ -189,7 +193,7 @@ class NnReform():
     def process_photons(self):
         self.aggregate_photons()
         self.sort_photons()
-        self.normalise_photons()
+        self.normalise_photons(use_bounds=not self.dithered)
         self.chunk_photons()
 
     def aggregate_photons(self):
@@ -215,18 +219,17 @@ class NnReform():
         # normalise photons
         if use_bounds:
             bounds = np.array([[0, sp.sample_time * sp.numframes],
-                               # mp.wavecal_coeffs[0] * ap.wvl_range + mp.wavecal_coeffs[1],  # [-116, 0], ap.wvl_range = np.array([800, 1500]), mp.wavecal_coeffs = [1. / 6, -250]
-                               [-250, 0],
+                               mp.wavecal_coeffs[0] * ap.wvl_range + mp.wavecal_coeffs[1],  # [-116, 0], ap.wvl_range = np.array([800, 1500]), mp.wavecal_coeffs = [1. / 6, -250]
                                [0, mp.array_size[0]],
                                [0, mp.array_size[1]]])
-            if config['data']['trans_polar']:
-                bounds[2] = [0, np.sqrt(((mp.array_size[0]/2)**2) * 2)]
-                bounds[3] = [-np.pi, np.pi]
+            # if config['data']['trans_polar']:
+            #     bounds[2] = [0, np.sqrt(((mp.array_size[0]/2)**2) * 2)]
+            #     bounds[3] = [-np.pi, np.pi]
             self.all_photons -= np.mean(bounds, axis=1)
             self.all_photons /= np.max(self.all_photons, axis=0)
         else:
             self.all_photons -= np.mean(self.all_photons, axis=0)
-            self.all_photons /= np.std(self.all_photons, axis=0)
+            self.all_photons /= (2*np.std(self.all_photons, axis=0))
         self.normalised = True
 
     def chunk_photons(self):
@@ -326,7 +329,7 @@ class NnReform():
         plt.show(block=True)
 
     def display_2d_hists(self, ind=None):
-        fig, axes = utils.init_grid(rows=self.num_classes, cols=config['dimensions'])
+        fig, axes = utils.init_grid(rows=self.num_classes, cols=config['dimensions'], figsize=(16,4*self.num_classes))
         # fig, axes = utils.init_grid(rows=self.num_classes, cols=4)
         fig.suptitle(f'{ind}', fontsize=16)
         plt.tight_layout()
@@ -335,7 +338,9 @@ class NnReform():
             bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
                     range(mp.array_size[1])]
         else:
-            bins = [np.linspace(-1,1,50), np.linspace(-1,1,50), np.linspace(-1,1,150), np.linspace(-1,1,150)]
+            radius = 1.5
+            bins = [np.linspace(-radius,radius,50), np.linspace(-radius,radius,50), 
+                    np.linspace(-radius,radius,150), np.linspace(-radius,radius,150)]
 
         coord = 'tpxy'
 
@@ -352,7 +357,7 @@ class NnReform():
                 if pair in [['x','p'], ['x','t']]:
                     image = image.T
                     inds = inds[1], inds[0]
-                axes[o,p].imshow(image, norm=LogNorm(), aspect='auto',
+                axes[o,p].imshow(image, norm=None, aspect='auto',
                                  extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
 
         plt.show(block=True)

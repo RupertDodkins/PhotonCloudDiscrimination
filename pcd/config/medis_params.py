@@ -52,3 +52,4 @@ mp.array_size = np.array([150,150])
 mp.wavecal_coeffs = [1.e9 / 6, -250]
 mp.hot_counts = False
 mp.dark_counts = False
+mp.platescale = 10 * 1e-3
