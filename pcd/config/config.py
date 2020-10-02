@@ -76,17 +76,6 @@ for file, num in zip(['testfiles', 'trainfiles', 'dark_evalfiles', 'glados_evalf
 config['mec']['dark_evalfiles'] = config.pop('dark_evalfiles')
 config['mec']['glados_evalfiles'] = config.pop('glados_evalfiles')
 
-
-    # testfile, extension = config['testfiles'].split('{id}')
-    # config['testfiles']  = [testfile + str(l) + extension for l in range(num_test)]
-    # trainfile, extension = config['trainfiles'].split('{id}')
-    # config['trainfiles'] = [trainfile + str(l) + extension for l in range(num_train)]
-    #
-    # evalfile, extension = config['mec']['evalfiles'].split('{id}')
-    # config['mec']['evalfiles'] = [evalfile + str(l) + extension for l in range(config['mec']['numeval'])]
-    # evalfile, extension = config['mec']['evalfiles'].split('{id}')
-    # config['mec']['evalfiles'] = [evalfile + str(l) + extension for l in range(config['mec']['numeval'])]
-
 # load run.yml
 with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "run.yml"), 'r') as stream:
     try:
