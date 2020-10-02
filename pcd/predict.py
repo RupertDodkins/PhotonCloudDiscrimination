@@ -31,7 +31,7 @@ def predict():
     net.load_state_dict(torch.load(config['savepath']))
     net.eval()
 
-    for evalfile in config['mec']['evalfiles']:
+    for evalfile in config['mec']['glados_evalfiles']:
         coords, labels = load_dataset([evalfile])
         input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 

@@ -110,7 +110,7 @@ def make_input(config, inject_fake_comp=False):
         d = input.Data(config)
 
     # outfiles = np.append(config['trainfiles'], config['testfiles'])
-    outfiles = config['mec']['evalfiles']
+    outfiles = config['mec']['dark_evalfiles']
 
     debugs = [False] * config['mec']['numeval']
     debugs[0] = True

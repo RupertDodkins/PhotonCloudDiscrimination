@@ -62,13 +62,30 @@ for astro in ['angles', 'lods', 'contrasts', 'planet_spectra']:
 num_test = config['data']['num_indata'] * config['data']['test_frac']
 num_test = int(num_test)
 num_train = config['data']['num_indata'] - num_test
+num_eval = config['mec']['numeval']
 
-testfile, extension = config['testfiles'].split('{id}')
-config['testfiles']  = [testfile + str(l) + extension for l in range(num_test)]
-trainfile, extension = config['trainfiles'].split('{id}')
-config['trainfiles'] = [trainfile + str(l) + extension for l in range(num_train)]
-evalfile, extension = config['mec']['evalfiles'].split('{id}')
-config['mec']['evalfiles'] = [evalfile + str(l) + extension for l in range(config['mec']['numeval'])]
+config['dark_evalfiles'] = config['mec']['dark_evalfiles']
+config['glados_evalfiles'] = config['mec']['glados_evalfiles']
+
+for file, num in zip(['testfiles', 'trainfiles', 'dark_evalfiles', 'glados_evalfiles'],
+    [num_test, num_train, num_eval, num_eval]):
+
+    suffix, extension = config[file].split('{id}')
+    config[file] = [suffix + str(l) + extension for l in range(num)]
+
+config['mec']['dark_evalfiles'] = config.pop('dark_evalfiles')
+config['mec']['glados_evalfiles'] = config.pop('glados_evalfiles')
+
+
+    # testfile, extension = config['testfiles'].split('{id}')
+    # config['testfiles']  = [testfile + str(l) + extension for l in range(num_test)]
+    # trainfile, extension = config['trainfiles'].split('{id}')
+    # config['trainfiles'] = [trainfile + str(l) + extension for l in range(num_train)]
+    #
+    # evalfile, extension = config['mec']['evalfiles'].split('{id}')
+    # config['mec']['evalfiles'] = [evalfile + str(l) + extension for l in range(config['mec']['numeval'])]
+    # evalfile, extension = config['mec']['evalfiles'].split('{id}')
+    # config['mec']['evalfiles'] = [evalfile + str(l) + extension for l in range(config['mec']['numeval'])]
 
 # load run.yml
 with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "run.yml"), 'r') as stream:

@@ -56,5 +56,6 @@ mec:
   dithered: True  # use the RA/Dec columns and align in time vs use x/y from beammap with no time adjusment
   offset: [90, -50]  # area to crop
   numeval: 1
-  evalfiles: !join [*DDIR, 'evalfile_{id}.h5']
+  dark_evalfiles: !join [*DDIR, 'evalfile_{id}.h5']
+  glados_evalfiles: !join [*WDIR, 'evalfile_{id}.h5']
   companion_coords: [68, 165, 4]  # x,y,r  can get these values by eye with debug == True on MecObs()
