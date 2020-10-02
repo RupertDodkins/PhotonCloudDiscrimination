@@ -18,7 +18,7 @@ import pcd.input as input
 
 class MecObs():
     """ Gets the photon lists from photontables """
-    def __init__(self, filenames, debug=True):
+    def __init__(self, filenames, debug=False):
         mp.array_size = [144, 140]  # the size of mec arrays
         # ap.wvl_range = np.array([0,1500])/1e9
 
@@ -37,12 +37,14 @@ class MecObs():
         for i, filename in enumerate(filenames):
             iop.photonlist = filename
 
+            print(i, filename)
+
             cam = Camera(usesave=False, product='photons')
             cam.load_photontable()  # don't give it option to create photons
 
             photons = cam.photons
 
-            print(i, filename, 'photons', len(photons[0]))
+            print('photons', len(photons[0]))
 
             tcut = np.logical_and(photons[0] > 0, photons[0] < 11)
             photons = photons[:, tcut]
@@ -110,7 +112,7 @@ def make_input(config, inject_fake_comp=False):
     # outfiles = np.append(config['trainfiles'], config['testfiles'])
     outfiles = config['mec']['evalfiles']
 
-    debugs = [False] * config['data']['num_indata']
+    debugs = [False] * config['mec']['numeval']
     debugs[0] = True
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
@@ -129,6 +131,46 @@ def make_input(config, inject_fake_comp=False):
                 obs = input.MedisObs(f'{i}', contrast, lods, spectra)
                 planet_photons = obs.photons[1]
                 photons = [photons[0], planet_photons]
+
+            if config['mec']['companion_coords']:
+                xc,yc,rc = config['mec']['companion_coords']
+                print('moving companion')
+                photons = photons[0]
+
+                # get total number of photons at planet
+                tot_aper_inds = (photons[:,2] - yc) ** 2 + (photons[:,3] - xc) ** 2  <= rc ** 2
+                num_tot = len(np.where(tot_aper_inds)[0])
+
+                # get number of star photons
+                ystar, xstar = (photons[:,2].min() + photons[:,2].max())/2 , (photons[:,3].min() + photons[:,3].max())/2
+                yconj = ystar - (yc-ystar) if yc - ystar > 0 else (ystar - yc) + ystar  # find opposite spot
+                xconj = xstar - (xc-xstar) if xc - xstar > 0 else (xstar - xc) + xstar
+                star_conj_inds = ((photons[:,2] - yconj) ** 2) + ((photons[:,3] - xconj) ** 2)  <= (rc ** 2)
+                num_star = len(np.where(star_conj_inds)[0])
+
+                # select indicies for planet photons
+                num_planet = int(num_tot - num_star)
+                chosen = sample(range(num_tot), num_planet)
+                planet_inds = np.where(tot_aper_inds)[0][chosen]
+
+                # separate star and planet photons
+                planet_photons = photons[planet_inds]
+                star_photons = np.delete(photons, planet_inds, axis=0)
+
+                # rotate planet photons around star
+                centered_y, centered_x = planet_photons[:,2] - ystar, planet_photons[:,3] - xstar
+                for p in range(num_planet):
+                    angle = np.deg2rad(planet_photons[p,0] * tp.rot_rate * 3)
+                    rot_matrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+                    # print(planet_photons[p, 2], planet_photons[p, 3])
+                    # print(p, angle, [centered_y[p], centered_x[p]])
+                    # print(rot_matrix)
+
+                    centered_y[p], centered_x[p] = np.dot(rot_matrix, np.array([centered_y[p], centered_x[p]]).T)
+                    # print([centered_y[p], centered_x[p]])
+                    planet_photons[p, 2], planet_photons[p, 3] = centered_y[p] + ystar, centered_x[p] + xstar
+                    # print([planet_photons[p, 2], planet_photons[p, 3]], '\n')
+                photons = [star_photons, planet_photons]
 
             c = input.NnReform(photons, outfile, train_type=train_type, debug=debugs[i],
                            rm_input=obs.medis_cache, dithered=config['mec']['dithered'])

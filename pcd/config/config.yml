@@ -57,3 +57,4 @@ mec:
   offset: [90, -50]  # area to crop
   numeval: 1
   evalfiles: !join [*DDIR, 'evalfile_{id}.h5']
+  companion_coords: [68, 165, 4]  # x,y,r  can get these values by eye with debug == True on MecObs()
