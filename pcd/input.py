@@ -110,7 +110,9 @@ class MedisObs():
         fig, axes = utils.init_grid(rows=self.numobj, cols=4, figsize=(16,4*self.numobj))
 
         if config['mec']['dithered']:
-            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-150, 0, 50), 150, 150]
+            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-150, 0, 50),
+                    np.linspace(self.photons[0][:,2].min(), self.photons[0][:,2].max(), 150),
+                    np.linspace(self.photons[0][:,3].min(), self.photons[0][:,3].max(), 150)]
         else:
             bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-250, 0, 50), range(mp.array_size[0]),
                     range(mp.array_size[1])]
@@ -130,8 +132,8 @@ class MedisObs():
                 if pair in [['x','p'], ['x','t']]:
                     image = image.T
                     inds = inds[1], inds[0]
-                axes[o,p].imshow(image, aspect='auto')#,
-                                 # extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
+                axes[o,p].imshow(image, aspect='auto', origin='lower',
+                                 extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
 
         plt.show(block=True)
 
@@ -392,7 +394,7 @@ def load_h5(h5_filename):
 
 def load_dataset(in_files, shuffle=False):
     for in_file in in_files:
-        assert os.path.isfile(in_file), '[error] dataset path not found'
+        assert os.path.isfile(in_file), f'[error] {in_file} dataset path not found'
 
     in_data = np.empty((0, config['num_point'], config['dimensions']))
     in_label = np.empty((0, config['num_point']))
