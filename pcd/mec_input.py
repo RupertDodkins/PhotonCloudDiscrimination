@@ -160,16 +160,11 @@ def make_input(config, inject_fake_comp=False):
                 # rotate planet photons around star
                 centered_y, centered_x = planet_photons[:,2] - ystar, planet_photons[:,3] - xstar
                 for p in range(num_planet):
-                    angle = np.deg2rad(planet_photons[p,0] * tp.rot_rate * 3)
+                    angle = np.deg2rad(planet_photons[p,0] * tp.rot_rate)
                     rot_matrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
-                    # print(planet_photons[p, 2], planet_photons[p, 3])
-                    # print(p, angle, [centered_y[p], centered_x[p]])
-                    # print(rot_matrix)
 
                     centered_y[p], centered_x[p] = np.dot(rot_matrix, np.array([centered_y[p], centered_x[p]]).T)
-                    # print([centered_y[p], centered_x[p]])
                     planet_photons[p, 2], planet_photons[p, 3] = centered_y[p] + ystar, centered_x[p] + xstar
-                    # print([planet_photons[p, 2], planet_photons[p, 3]], '\n')
                 photons = [star_photons, planet_photons]
 
             c = input.NnReform(photons, outfile, train_type=train_type, debug=debugs[i],

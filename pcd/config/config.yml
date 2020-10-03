@@ -1,6 +1,6 @@
 debug: True
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 200928b/]  # concat DIR with that suffix and store as WDIR
+working_dir: &WDIR !join [*DIR, 201001/]  # concat DIR with that suffix and store as WDIR
 overwrite_cache: False
 pointnet_version: 2
 num_point: &PN 131072  #262144  # 131072
