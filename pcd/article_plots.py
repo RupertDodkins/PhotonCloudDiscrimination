@@ -10,7 +10,7 @@ from mpl_toolkits.mplot3d import Axes3D  # don't listen to pycharm this is neces
 import numpy as np
 from vip_hci import pca
 from vip_hci.metrics import contrcurve
-from medis.params import ap, sp, mp
+from medis.params import ap, sp, mp, tp
 from medis.plot_tools import grid
 
 from visualization import load_meta, get_metric_distributions, confusion_matrix, trans_p2c
@@ -40,7 +40,7 @@ def get_reduced_images(ind=1):
 
     wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], all_tess.shape[0])
     scale_list = wsamples / (ap.wvl_range[1] - ap.wvl_range[0])
-    angle_list = np.linspace(0, 90, all_tess.shape[1])
+    angle_list = np.linspace(0, sp.numframes*sp.sample_time*tp.rot_rate, all_tess.shape[1])
 
     all_raw = np.sum(all_tess, axis=(0,1))
     star_raw = np.sum(star_tess, axis=(0,1))
@@ -56,7 +56,7 @@ def get_reduced_images(ind=1):
                     adimsdi='double', ncomp=None, ncomp2=2, collapse='sum')
 
     reduced_images = np.array([[all_raw, star_raw, planet_raw], [all_pca, star_pca, planet_pca]])
-    grid(reduced_images, logZ=False, vlim=(1,50))  #, vlim=(1,70)
+    grid(reduced_images, logZ=True, vlim=(1,50))  #, vlim=(1,70)
 
         # with open(filename, 'wb') as handle:
             #     pickle.dump(reduced_images, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -192,7 +192,7 @@ def get_tess(ind=-1):
     bins = [np.linspace(all_photons[:,0].min(), all_photons[:,0].max(), sp.numframes + 1),
             np.linspace(all_photons[:,1].min(), all_photons[:,1].max(), ap.n_wvl_final + 1),
             np.linspace(-200, 200, 150),
-            np.linspace(-700, 500, 150)]
+            np.linspace(-200, 200, 150)]
 
     all_tess, edges = np.histogramdd(all_photons, bins=bins)
 
