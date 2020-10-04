@@ -144,7 +144,7 @@ def make_input(config, inject_fake_comp=False):
                 # get number of star photons
                 ystar, xstar = (photons[:,2].min() + photons[:,2].max())/2 , (photons[:,3].min() + photons[:,3].max())/2
                 yconj = ystar - (yc-ystar) if yc - ystar > 0 else (ystar - yc) + ystar  # find opposite spot
-                xconj = xstar - (xc-xstar) if xc - xstar > 0 else (xstar - xc) + xstar
+                xconj = xc - 2*rc
                 star_conj_inds = ((photons[:,2] - yconj) ** 2) + ((photons[:,3] - xconj) ** 2)  <= (rc ** 2)
                 num_star = len(np.where(star_conj_inds)[0])
 
