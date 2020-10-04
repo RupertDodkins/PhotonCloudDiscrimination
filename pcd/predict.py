@@ -21,7 +21,7 @@ from examples.unet import UNet
 from pcd.config.config import config
 from pcd.input import load_dataset
 from pcd.train3 import reform_input
-from pcd.visualization import pt_step
+from pcd.visualization import pt_step, metric_tesseracts
 
 
 def predict():
@@ -46,3 +46,4 @@ def predict():
 
 if __name__ == '__main__':
     predict()
+    metric_tesseracts(start = 0, end = -1, jump=1, type='eval')

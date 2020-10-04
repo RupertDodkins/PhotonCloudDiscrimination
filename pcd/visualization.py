@@ -21,7 +21,7 @@ import utils
 import h5py
 
 class Grid_Visualiser():
-    def __init__(self, rows, cols, numsteps, row_headings=None, xtitles=None, ytitles=None, norm=None):
+    def __init__(self, rows, cols, numsteps, row_headings=None, xtitles=None, ytitles=None, norm=None, pred=False):
 
         self.numsteps = numsteps
 
@@ -49,7 +49,10 @@ class Grid_Visualiser():
         self.it = 0
 
         self.trainlabel = ['Test', 'Train']
-        self.num_train, self.num_test = num_input()
+        self.pred = pred
+
+        if not self.pred:
+            self.num_train, self.num_test = num_input()
 
         def onclick(event):
             print('%s click: button=%d, x=%d, y=%d, xdata=%f, ydata=%f' %
@@ -80,11 +83,13 @@ class Grid_Visualiser():
         if not vmax:
             vmax = [None]*len(images)
 
-        epoch = step*config['train']['cache_freq'] / (int(self.num_train / config['train']['batch_size']) + int(self.num_test / config['train']['batch_size']))
+        if not self.pred:
+            epoch = step * config['train']['cache_freq'] / (int(self.num_train / config['train']['batch_size']) + int(
+                self.num_test / config['train']['batch_size']))
 
-        kind = self.trainlabel[trainbool]
-        print(step, kind, trainbool, epoch)
-        self.fig.suptitle(f'Type: {kind}    |     step: {step}/{self.numsteps - 1}     |     epoch: {epoch:.2f}', fontsize=16)
+            kind = self.trainlabel[trainbool]
+            print(step, kind, trainbool, epoch)
+            self.fig.suptitle(f'Type: {kind}    |     step: {step}/{self.numsteps - 1}     |     epoch: {epoch:.2f}', fontsize=16)
 
         self.fig.subplots_adjust(top=0.92, left=0.06, bottom=0.06)
 
@@ -493,7 +498,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
 
     visualiser = Grid_Visualiser(4, 4, row_headings= ['True Planet','Missed Planet','True Star','Missed Star'],
                                  xtitles=['X','Phase','Time','Phase'], ytitles=['Y']*4, numsteps=allsteps,
-                                 norm=LogNorm())
+                                 norm=LogNorm(), pred=type=='eval')
 
     if config['data']['quantize']:
         _,_, cur_data, _, _ = alldata[0]
