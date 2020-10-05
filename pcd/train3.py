@@ -64,12 +64,17 @@ def reform_input(coords, labels, device):
 
 def train():
 
-    # loss and network
-    criterion = nn.CrossEntropyLoss()
-    net = UNet(in_nchannel=4, out_nchannel=2, D=4)  # D is 4 - 1
-    # net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
+    # net = UNet(in_nchannel=4, out_nchannel=2, D=4)  # D is 4 - 1
+    net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
     device = torch.device('cuda')
     net = net.to(device)
+
+    # loss and network
+    criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1], device=device))
+
+    if os.path.exists(config['savepath']):
+        print('Loading neural net')
+        net.load_state_dict(torch.load(config['savepath']))
 
     optimizer = SGD(net.parameters(), lr=1e-4)
     for epoch in range(config['train']['max_epoch']):
@@ -91,8 +96,8 @@ def train():
             # Loss
             loss = criterion(output.F, labels_pt)
 
-            if i % 5 == 0:
-                pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=True)
+            # if i % 5 == 0:
+            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=True)
 
             # Gradient
             loss.backward()
