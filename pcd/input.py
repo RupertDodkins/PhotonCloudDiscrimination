@@ -20,7 +20,7 @@ from visualization import trans_p2c
 
 class MedisObs():
     """ Gets the photon lists from MEDIS """
-    def __init__(self, name, contrast, lods, spectra, debug=True):
+    def __init__(self, name, contrast, lods, spectra, debug=False):
         iop.update_testname(str(name))
         self.medis_cache = iop.testdir
         if contrast == [0.0]:
@@ -230,7 +230,7 @@ class NnReform():
             self.all_photons -= np.mean(bounds, axis=1)
             self.all_photons /= np.max(self.all_photons, axis=0)
         else:
-            self.all_photons -= np.mean(self.all_photons, axis=0)
+            self.all_photons -= (np.min(self.all_photons, axis=0) + np.max(self.all_photons, axis=0))/2  # np.mean(self.all_photons, axis=0)
             self.all_photons /= (2*np.std(self.all_photons, axis=0))
         self.normalised = True
 
