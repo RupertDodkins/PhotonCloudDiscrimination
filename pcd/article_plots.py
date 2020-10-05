@@ -9,6 +9,7 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.mplot3d import Axes3D  # don't listen to pycharm this is necessary
 import numpy as np
 from vip_hci import pca
+from vip_hci.medsub import medsub_source
 from vip_hci.metrics import contrcurve
 from medis.params import ap, sp, mp, tp
 from medis.plot_tools import grid
@@ -17,8 +18,10 @@ from visualization import load_meta, get_metric_distributions, confusion_matrix,
 from pcd.config.config import config
 
 home = os.path.expanduser("~")
+sp.numframes = 100
+sp.sample_time = 0.05
 
-def get_reduced_images(ind=1):
+def get_reduced_images(ind=1, use_spec=False):
     """ Looks for reduced images file in the home folder and returns if it exists. If you're on the local machine
     and the file has not been transferred it will throw a FileNotFoundError """
     # if home == '/Users/dodkins':
@@ -38,28 +41,48 @@ def get_reduced_images(ind=1):
 
     all_tess, star_tess, planet_tess = get_tess(ind=ind)
 
-    wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], all_tess.shape[0])
-    scale_list = wsamples / (ap.wvl_range[1] - ap.wvl_range[0])
-    angle_list = np.linspace(0, sp.numframes*sp.sample_time*tp.rot_rate, all_tess.shape[1])
+    all_tess = np.transpose(all_tess, axes=(1,0,2,3))
+    star_tess = np.transpose(star_tess, axes=(1,0,2,3))
+    planet_tess = np.transpose(planet_tess, axes=(1,0,2,3))
 
     all_raw = np.sum(all_tess, axis=(0,1))
     star_raw = np.sum(star_tess, axis=(0,1))
     planet_raw = np.sum(planet_tess, axis=(0,1))
 
-    all_pca = pca.pca(all_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-                    adimsdi='double', ncomp=None, ncomp2=2, collapse='sum')
+    angle_list = np.linspace(0, sp.numframes * sp.sample_time * tp.rot_rate, all_tess.shape[1])
 
-    star_pca = pca.pca(star_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-                    adimsdi='double', ncomp=None, ncomp2=2, collapse='sum')
+    if use_spec:
+        wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], all_tess.shape[0])
+        scale_list = wsamples / (ap.wvl_range[1] - ap.wvl_range[0])
 
-    planet_pca = pca.pca(planet_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-                    adimsdi='double', ncomp=None, ncomp2=2, collapse='sum')
 
-    reduced_images = np.array([[all_raw, star_raw, planet_raw], [all_pca, star_pca, planet_pca]])
-    grid(reduced_images, logZ=True, vlim=(1,50))  #, vlim=(1,70)
 
-        # with open(filename, 'wb') as handle:
-            #     pickle.dump(reduced_images, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # all_pca = pca.pca(all_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
+        #                 adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
+        #
+        # star_pca = pca.pca(star_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
+        #                 adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
+        #
+        # planet_pca = pca.pca(planet_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
+        #                 adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
+        # reduced_images = np.array([[all_raw, star_raw, planet_raw], [all_pca, star_pca, planet_pca]])
+
+        all_med = medsub_source.median_sub(all_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
+        star_med = medsub_source.median_sub(star_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
+        planet_med = medsub_source.median_sub(planet_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
+
+    else:
+        all_med = medsub_source.median_sub(np.sum(all_tess, axis=0), angle_list=angle_list, collapse='sum')
+        star_med = medsub_source.median_sub(np.sum(star_tess, axis=0), angle_list=angle_list, collapse='sum')
+        planet_med = medsub_source.median_sub(np.sum(planet_tess, axis=0), angle_list=angle_list,
+                                              collapse='sum')
+
+    reduced_images = np.array([[all_raw, star_raw, planet_raw], [all_med, star_med, planet_med]])
+    # reduced_images = np.array([[all_raw, star_raw, planet_raw]])
+
+    # grid(reduced_images, logZ=True, vlim=(1,50))  #, vlim=(1,70)
+    grid(reduced_images, vlim=(-9,40))  #, vlim=(1,70)
 
     return reduced_images
 
@@ -191,8 +214,8 @@ def get_tess(ind=-1):
     # bins = [150] * 4
     bins = [np.linspace(all_photons[:,0].min(), all_photons[:,0].max(), sp.numframes + 1),
             np.linspace(all_photons[:,1].min(), all_photons[:,1].max(), ap.n_wvl_final + 1),
-            np.linspace(-200, 200, 150),
-            np.linspace(-200, 200, 150)]
+            np.linspace(-200, 200, 100),
+            np.linspace(-200, 200, 100)]
 
     all_tess, edges = np.histogramdd(all_photons, bins=bins)
 
@@ -204,6 +227,6 @@ def get_tess(ind=-1):
 
 if __name__ == '__main__':
     get_reduced_images(ind=-1)
-    for i in range(0,25,5):
-        get_reduced_images(ind=i)
+    # for i in range(0,25,5):
+    #     get_reduced_images(ind=i)
     # plot_3D_pointclouds()
