@@ -62,19 +62,16 @@ for astro in ['angles', 'lods', 'contrasts', 'planet_spectra']:
 num_test = config['data']['num_indata'] * config['data']['test_frac']
 num_test = int(num_test)
 num_train = config['data']['num_indata'] - num_test
-num_eval = config['mec']['numeval']
+num_eval = config['data']['num_indata']
 
-config['dark_evalfiles'] = config['mec']['dark_evalfiles']
-config['glados_evalfiles'] = config['mec']['glados_evalfiles']
+config['glados_inputfiles'] = config['mec']['glados_inputfiles']
 
-for file, num in zip(['testfiles', 'trainfiles', 'dark_evalfiles', 'glados_evalfiles'],
-    [num_test, num_train, num_eval, num_eval]):
+for file, num in zip(['testfiles', 'trainfiles', 'glados_inputfiles'], [num_test, num_train, num_eval]):
 
     suffix, extension = config[file].split('{id}')
     config[file] = [suffix + str(l) + extension for l in range(num)]
 
-config['mec']['dark_evalfiles'] = config.pop('dark_evalfiles')
-config['mec']['glados_evalfiles'] = config.pop('glados_evalfiles')
+config['mec']['glados_inputfiles'] = config.pop('glados_inputfiles')
 
 # load run.yml
 with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "run.yml"), 'r') as stream:

@@ -51,11 +51,9 @@ train:
 #  num_test_batch: 2  # load batches of train data with this size on each cycle in train()
 
 mec:
-  dark_data: &DDIR /mnt/data0/dodkins/mec/20200731/Hip5319/dither_2/drizzled_h5s/
+  dark_data: /mnt/data0/dodkins/mec/20200731/Hip5319/dither_2/drizzled_h5s/
   h5s: # [1596290345.h5, 1596290351.h5, ...] or leave blank for all in folder
-  dithered: True  # use the RA/Dec columns and align in time vs use x/y from beammap with no time adjusment
-  offset: [90, -50]  # area to crop
-  numeval: 1
-  dark_evalfiles: !join [*DDIR, 'evalfile_{id}.h5']
-  glados_evalfiles: !join [*WDIR, 'evalfile_{id}.h5']
-  companion_coords: [68, 165, 4]  # x,y,r  can get these values by eye with debug == True on MecObs()
+  dithered: True  # use the RA/Dec columns and align in time vs use x/y from beammap with no time adjustment
+  offset: [100, -55]  # area to crop
+  glados_inputfiles: !join [*WDIR, 'inputfile_{id}.h5']
+  companion_coords: [60, 174, 4]  # x,y,r  can get these values by eye with debug == True on MecObs()
