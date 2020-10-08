@@ -1,6 +1,6 @@
 debug: True
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 201001/]  # concat DIR with that suffix and store as WDIR
+working_dir: &WDIR !join [*DIR, 201008/]  # concat DIR with that suffix and store as WDIR
 overwrite_cache: False
 pointnet_version: 2
 num_point: &PN 131072  #262144  # 131072
@@ -13,9 +13,9 @@ model: minkowski # models.pointnet2_sem_seg  #models.pointnet2_part_seg
 savepath: !join [*WDIR, 'test95.pth']
 
 data:
-  num_indata: 4  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
+  num_indata: 40  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
   null_frac: 0.  # num of input data that are null (no planet photons)
-  test_frac: 0.25
+  test_frac: 0.2
   aug_ratio: 0  # For every 1 medis input duplicate and rotate it {aug_ratio} times
   medis_config: "medis_params.py"
   angles: (0,360) #72,108,144,180,216,252,288,324]  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection

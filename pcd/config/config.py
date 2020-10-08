@@ -11,7 +11,7 @@ if home == '/Users/dodkins':
     os.environ["WORKING_DIR"] = "/Users/dodkins"
 elif home == '/home/dodkins':
     # os.environ["WORKING_DIR"] = "/mnt/data0/dodkins"
-    os.environ["WORKING_DIR"] = "/home/dodkins"
+    os.environ["WORKING_DIR"] = "/work/dodkins"
 else:
     print('System not recognised. Make sure $WORKING_DIR is set')
 
