@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import copy
 
 from medis.MKIDS import Camera
+from medis.distribution import planck
 
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
@@ -31,7 +32,7 @@ class MecObs():
         self.photons = np.empty((0, 4))
 
         if filenames is None:
-            filenames = glob.glob(config['mec']['dark_data']+'*.h5')
+            filenames = glob.glob(config['mec']['dark_data']+'*.h5')[::6]
 
         if debug: fig = plt.figure(figsize=(12,12))
 
@@ -115,7 +116,7 @@ def make_input(config, inject_fake_comp=False):
     outfiles = [config['mec']['dark_data'] + file.split('/')[-1] for file in outfiles]
 
     debugs = [False] * config['data']['num_indata']
-    # debugs[0] = True
+    debugs[0] = True
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)
@@ -152,11 +153,21 @@ def make_input(config, inject_fake_comp=False):
 
                 # select indicies for planet photons
                 num_planet = int(num_tot - num_star)
-                chosen = sample(range(num_tot), num_planet)
+                # wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], 50)
+                phase = filephotons[tot_aper_inds,1]
+                wsamples = (phase - mp.wavecal_coeffs[1]) / (mp.wavecal_coeffs[0])
+                spectrum = planck(config['data']['planet_spectra'][0], wsamples)
+                pdf = spectrum/max(spectrum)
+                # normed_phase = filephotons[tot_aper_inds,1] / filephotons[tot_aper_inds,1].min()
+                # samples = np.random.choice(phase, size=num_planet, p=pdf)
+                seeds = np.random.uniform(0,1,len(pdf))
+                chosen = seeds<pdf
+                # chosen = sample(range(num_tot), num_planet)
                 planet_inds = np.where(tot_aper_inds)[0][chosen]
 
                 # separate star and planet photons
                 planet_photons = filephotons[planet_inds]
+                num_planet = len(planet_photons)
                 star_photons = np.delete(filephotons, planet_inds, axis=0)
 
                 # rotate planet photons around star
