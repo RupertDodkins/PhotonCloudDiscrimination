@@ -32,7 +32,7 @@ class MecObs():
         self.photons = np.empty((0, 4))
 
         if filenames is None:
-            filenames = glob.glob(config['mec']['dark_data']+'*.h5')[::6]
+            filenames = glob.glob(config['mec']['dark_data']+'*.h5')
 
         if debug: fig = plt.figure(figsize=(12,12))
 
@@ -116,7 +116,7 @@ def make_input(config, inject_fake_comp=False):
     outfiles = [config['mec']['dark_data'] + file.split('/')[-1] for file in outfiles]
 
     debugs = [False] * config['data']['num_indata']
-    debugs[0] = True
+    # debugs[0] = True
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)
@@ -157,7 +157,7 @@ def make_input(config, inject_fake_comp=False):
                 phase = filephotons[tot_aper_inds,1]
                 wsamples = (phase - mp.wavecal_coeffs[1]) / (mp.wavecal_coeffs[0])
                 spectrum = planck(config['data']['planet_spectra'][0], wsamples)
-                pdf = spectrum/max(spectrum)
+                pdf = spectrum*4/max(spectrum)
                 # normed_phase = filephotons[tot_aper_inds,1] / filephotons[tot_aper_inds,1].min()
                 # samples = np.random.choice(phase, size=num_planet, p=pdf)
                 seeds = np.random.uniform(0,1,len(pdf))
@@ -171,8 +171,14 @@ def make_input(config, inject_fake_comp=False):
                 star_photons = np.delete(filephotons, planet_inds, axis=0)
 
                 # rotate planet photons around star
-                centered_y, centered_x = planet_photons[:,2] - ystar, planet_photons[:,3] - xstar
                 offset = np.random.uniform(0,360,1)[0]
+                rad_offset = np.random.uniform(-10,10,1)[0]
+                # print(rad_offset, 'rad')
+
+                centered_y, centered_x = planet_photons[:,2] - ystar, planet_photons[:,3] - xstar
+                centered_y += rad_offset if yc > 0 else -rad_offset
+                centered_x += rad_offset if xc > 0 else -rad_offset
+
                 for p in range(num_planet):
                     angle = np.deg2rad(planet_photons[p,0] * tp.rot_rate + offset)
                     rot_matrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
@@ -183,7 +189,6 @@ def make_input(config, inject_fake_comp=False):
 
             filephotons = [filephotons[o][i::config['data']['num_indata']] for o in range(2)]
 
-            print(debugs, 'debug')
             c = input.NnReform(filephotons, outfile, train_type=train_type, debug=debugs[i],
                            rm_input=obs.medis_cache, dithered=config['mec']['dithered'])
             c.process_photons()
