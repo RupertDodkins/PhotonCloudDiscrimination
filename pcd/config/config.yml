@@ -13,7 +13,7 @@ model: minkowski # models.pointnet2_sem_seg  #models.pointnet2_part_seg
 savepath: !join [*WDIR, 'test95.pth']
 
 data:
-  num_indata: 40  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
+  num_indata: 4  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
   null_frac: 0.  # num of input data that are null (no planet photons)
   test_frac: 0.25
   aug_ratio: 0  # For every 1 medis input duplicate and rotate it {aug_ratio} times
@@ -56,4 +56,4 @@ mec:
   dithered: True  # use the RA/Dec columns and align in time vs use x/y from beammap with no time adjustment
   offset: [100, -55]  # area to crop
   glados_inputfiles: !join [*WDIR, 'inputfile_{id}.h5']
-  companion_coords: [60, 174, 4]  # x,y,r  can get these values by eye with debug == True on MecObs()
+  companion_coords: [60, 174, 5]  # x,y,r  can get these values by eye with debug == True on MecObs()

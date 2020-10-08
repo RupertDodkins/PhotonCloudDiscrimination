@@ -804,6 +804,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
-    # onetime_metric_streams(end = -1)
-    metric_tesseracts(start = 0, end = -1, jump=1)
+    onetime_metric_streams(end = -1)
+    metric_tesseracts(start = 0, end = -1, jump=50)
 
