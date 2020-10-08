@@ -4,15 +4,12 @@ import os
 import numpy as np
 import copy
 
-import open3d as o3d
-
 import torch
 import torch.nn as nn
 from torch.optim import SGD
 
 import MinkowskiEngine as ME
 from examples.minkunet import MinkUNet34C, MinkUNet14A
-from examples.unet import UNet
 
 from pcd.config.config import config
 from pcd.visualization import tf_step, pt_step
@@ -21,21 +18,9 @@ from pcd.input import load_dataset
 if os.path.exists(config['train']['pt_outputs']):
     os.remove(config['train']['pt_outputs'])
 
-def load_file(file_name):
-    pcd = o3d.io.read_point_cloud(file_name)
-    coords = np.array(pcd.points)
-    colors = np.array(pcd.colors)
-    return coords, colors, pcd
-
 def reform_input(coords, labels, device):
     labels = np.int32(labels)
-    # feats = np.array([[0., 0., 0., 0.], [1., 1., 1., 1.]])[labels]
     feats = coords
-
-    # coords = np.concatenate((coords, np.zeros((coords.shape[0], coords.shape[1], 1))), axis=2)
-    #print(warning the batch num should be on left)
-    # input_pt = ME.SparseTensor(torch.from_numpy(feats[0]).float(),
-    #                            coords=torch.from_numpy(coords[0] * 1e6).float()).to(device)
 
     coords, feats, labels = coords[0], feats[0], labels[0]
     if config['data']['quantize']:
@@ -90,9 +75,6 @@ def train():
             # Forward
             output = net(input_pt)
 
-            # params_to_train = copy.deepcopy([mp[1] for mp in net.named_parameters()])
-            # print([params_to_train[i].mean() for i in range(len(params_to_train))])
-
             # Loss
             loss = criterion(output.F, labels_pt)
 
@@ -102,11 +84,6 @@ def train():
             # Gradient
             loss.backward()
             optimizer.step()
-
-            # params_to_train_after = copy.deepcopy([mp[1] for mp in net.named_parameters()])
-            # print([params_to_train[i].mean() for i in range(len(params_to_train))])
-            # print([params_to_train_after[i].mean() for i in range(len(params_to_train))])
-            # print([params_to_train[i].mean() == params_to_train_after[i].mean() for i in range(len(params_to_train))])
 
         test(net, device, criterion)
 
@@ -120,20 +97,12 @@ def test(net, device, criterion):
             coords, labels = load_dataset(config['testfiles'][i:i + 1])
             input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
-            # params_to_train = copy.deepcopy([mp[1] for mp in net.named_parameters()])
-            # print([params_to_train[i].mean() for i in range(len(params_to_train))])
-
             output = net(input_pt)
 
             loss = criterion(output.F, labels_pt)
 
             # if i % 10 == 0:
             pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=False)
-
-            # params_to_train_after = copy.deepcopy([mp[1] for mp in net.named_parameters()])
-            # print([params_to_train[i].mean() for i in range(len(params_to_train))])
-            # print([params_to_train_after[i].mean() for i in range(len(params_to_train))])
-            # print([params_to_train[i].mean() == params_to_train_after[i].mean() for i in range(len(params_to_train))])
 
 if __name__ == '__main__':
     train()
