@@ -20,19 +20,23 @@ from visualization import trans_p2c
 
 class MedisObs():
     """ Gets the photon lists from MEDIS """
-    def __init__(self, name, contrast, lods, spectra, debug=False):
+    def __init__(self, name, astro, debug=False):
+        """ astro tuple containing contrast, lod and spectra tuple"""
         iop.update_testname(str(name))
         self.medis_cache = iop.testdir
-        if contrast == [0.0]:
-            contrast = []
+
+        ap.contrast = [astro[0]]
+        ap.companion_xy = [astro[1]]
+        # ap.spectra = [[spec] for spec in astro[2]]
+        ap.spectra = astro[2]
+
+        if ap.contrast == [0.0]:
+            ap.contrast = []
             ap.companion = False
         else:
             ap.companion = True
-        ap.contrast = contrast
-        ap.companion_xy = lods
-        ap.spectra = spectra
 
-        self.numobj = len(contrast)+1
+        self.numobj = len(ap.contrast)+1
 
         # instantiate but don't generate data yet
         tel = Telescope(usesave=sp.save_to_disk)
@@ -62,12 +66,12 @@ class MedisObs():
                 photons = cam.ungroup(stem)
                 # photons = photons[[0, 1, 3, 2]]
 
-            if config['data']['trans_polar']:
-                photons[2] -= cam.array_size[1]/2
-                photons[3] -= cam.array_size[0]/2
-                r = np.sqrt(photons[2]**2 + photons[3]**2)
-                t =  np.arctan2(photons[3],photons[2])
-                photons[-2:] = np.array([r,t])
+            # if config['data']['trans_polar']:
+            #     photons[2] -= cam.array_size[1]/2
+            #     photons[3] -= cam.array_size[0]/2
+            #     r = np.sqrt(photons[2]**2 + photons[3]**2)
+            #     t =  np.arctan2(photons[3],photons[2])
+            #     photons[-2:] = np.array([r,t])
 
             self.photons.append(photons.T)
 
@@ -165,9 +169,7 @@ class MedisObs():
                     axes[r,c].imshow(H[r,c], norm=LogNorm())
         plt.show()
 
-
-class NnReform():
-    """ Creates the input data in the NN input format """
+class Reform():
     def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None, dithered=False):
         self.photons = photons #[self.normalise_photons(photons[o]) for o in range(config['classes'])]
         self.outfile = outfile
@@ -183,20 +185,6 @@ class NnReform():
         self.dimensions = config['dimensions']
         assert self.dimensions in [3,4]
         self.num_classes = len(photons)  # not config['classes'] because sometimes there are only photons for one class
-
-        self.chunked_photons = []
-        self.chunked_pids = []
-        self.labels = []
-        self.data = []
-        self.pids = []
-
-        self.normalised = False
-
-    def process_photons(self):
-        self.aggregate_photons()
-        self.sort_photons()
-        self.normalise_photons(use_bounds=not self.dithered)
-        self.chunk_photons()
 
     def aggregate_photons(self):
         self.all_photons = np.empty((0, self.dimensions))  # photonlist with both types of photon
@@ -234,6 +222,26 @@ class NnReform():
             self.all_photons /= (2*np.std(self.all_photons, axis=0))
         self.normalised = True
 
+
+class NnReform(Reform):
+    """ Creates the input data in the NN input format """
+    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None, dithered=False):
+        super().__init__(photons, outfile, train_type, aug_ind, debug, rm_input, dithered)
+
+        self.chunked_photons = []
+        self.chunked_pids = []
+        self.labels = []
+        self.data = []
+        self.pids = []
+
+        self.normalised = False
+
+    def process_photons(self):
+        self.aggregate_photons()
+        self.sort_photons()
+        self.normalise_photons(use_bounds=not self.dithered)
+        self.chunk_photons()
+
     def chunk_photons(self):
         # remove residual photons that won't fit into a input cube for the network
         total_photons = sum([len(self.photons[i]) for i in range(self.num_classes)])
@@ -250,7 +258,6 @@ class NnReform():
         else:
             self.chunked_photons = red_photons.reshape(1, self.num_point, self.dimensions, order='F')  # selects them throughout the obss
             self.chunked_pids = red_pids.reshape(1, self.num_point, 1, order='F')
-
 
     def save_class(self):
         if self.aug_ind:
@@ -365,25 +372,46 @@ class NnReform():
         plt.show(block=True)
 
 
-class Data():
+class DtReform():
+    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None, dithered=False):
+        super().__init__(photons, outfile, train_type, aug_ind, debug, rm_input, dithered)
+
+        self.aggregate_photons = NnReform.aggregate_photons
+        self.sort_photons = NnReform.sort_photons
+
+        self.aggregate_photons()
+        self.sort_photons()
+
+        self.get_tess()
+
+    def get_tess(self):
+        bins = [np.linspace(self.all_photons[:, 0].min(), self.all_photons[:, 0].max(), sp.numframes + 1),
+                np.linspace(self.all_photons[:, 1].min(), self.all_photons[:, 1].max(), ap.n_wvl_final + 1),
+                np.linspace(-200, 200, 100),
+                np.linspace(-200, 200, 100)]
+
+        self.all_tess, edges = np.histogramdd(self.all_photons, bins=bins)
+
+
+class MedisParams():
     """ Infers the sequence of parameters to pass to each MedisObs """
     def __init__(self, config=None):
-        self.numobj = config['data']['num_indata']+1
-        self.contrasts, self.lods = self.observation_params()
-        # self.trainfiles, self.testfiles = self.get_filenames()
 
-    def observation_params(self):
-        # numplanets = config['max_planets']
-        contrasts = np.power(np.ones((config['data']['num_indata']))*10, config['data']['contrasts'])
+        self.contrasts = np.power(np.ones((config['data']['num_indata']))*10, config['data']['contrasts'])
         if config['data']['null_frac'] > 0:
-            contrasts[::int(1 / config['data']['null_frac'])] = 0
+            self.contrasts[::int(1 / config['data']['null_frac'])] = 0
         # invalid_contrast = np.array(config['data']['contrasts']) == -10
-        # contrasts[invalid_contrast] = 0
+        # self.contrasts[invalid_contrast] = 0
         disp = config['data']['lods']
         angle = config['data']['angles']
-        lods = (np.array([np.sin(np.deg2rad(angle)),np.cos(np.deg2rad(angle))])*disp).T
+        self.lods = (np.array([np.sin(np.deg2rad(angle)),np.cos(np.deg2rad(angle))])*disp).T
 
-        return contrasts, lods
+        self.spectra = [(config['data']['star_spectra'], p_spec) for p_spec in config['data']['planet_spectra']]
+        # self.trainfiles, self.testfiles = self.get_filenames()
+
+    def __call__(self, *args, **kwargs):
+        return zip(self.contrasts, self.lods, self.spectra)
+
 
 def load_h5(h5_filename):
     f = h5py.File(h5_filename)
@@ -411,11 +439,11 @@ def load_dataset(in_files, shuffle=False):
     return in_data, in_label
 
 def make_input(config):
-    d = Data(config)
+    mp = MedisParams(config)
 
     # get info on each photoncloud
     outfiles = np.append(config['trainfiles'], config['testfiles'])
-    debugs = [False] * config['data']['num_indata']
+    debugs = [True] * config['data']['num_indata']
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)
@@ -429,15 +457,17 @@ def make_input(config):
             print('Already exists')
         else:
             if not aug_ind:  # any number > 0
-                contrast = [d.contrasts[i]]
-                lods = [d.lods[i]]
-                spectra = [config['data']['star_spectra'], config['data']['planet_spectra'][i]]
-                obs = MedisObs(f'{i}', contrast, lods, spectra)
+                obs = MedisObs(f'{i}', next(mp()), debug=True)
                 photons = obs.photons
 
-            c = NnReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
-            c.process_photons()
-            c.save_class()
+            if config['model'] == 'minkowski':
+                reformer = NnReform
+            elif config['model'] == 'lightgbm':
+                reformer = DtReform
+
+            reformer(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
+            reformer.process_photons()
+            reformer.save_class()
 
     workingdir_config = config['working_dir'] + 'config.yml'
     repo_config = os.path.join(os.path.dirname(__file__), 'config/config.yml')
