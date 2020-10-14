@@ -111,7 +111,7 @@ class Grid_Visualiser():
     # plt.show(block=True)
 
 
-def load_meta(kind='outputs', amount=-1):
+def load_meta(kind='pt_outputs', amount=-1):
     alldata = []
     with open(config['train'][kind], 'rb') as handle:
         while True:
@@ -254,7 +254,7 @@ def update_axes():
     pass
 
 def initialize_metrics(metric_types):
-    values = [np.empty(0)]*8
+    values = [np.empty(0)]*len(metric_types)
 
     metrics = {}
     metrics['train'] = dict(zip(metric_types, values))
@@ -307,20 +307,17 @@ def onetime_metric_streams(start=0, end=10):
     :return:
     """
 
-    # import tensorflow.compat.v1 as tf
-    # tf.disable_v2_behavior()
-    # import glob
+    plot_metric_types = ['True Positive', 'True Negative']
+    metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall', 'Precision',
+                    'Accuracy', 'Loss']
 
     num_train, num_test = num_input()
     alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
 
-    # metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall', 'Precision']
-    metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall', 'Precision',
-                    'Accuracy', 'Loss']
     # axes = initialize_axes(metric_types+['Loss','Accuracy'])
-    axes = initialize_axes(metric_types)
+    axes = initialize_axes(plot_metric_types)
     metrics = initialize_metrics(metric_types)
 
     for step in range(start, end+1):
@@ -332,39 +329,16 @@ def onetime_metric_streams(start=0, end=10):
         metrics = update_metrics(cur_seg, pred_seg_res, train, metrics, loss)
 
     for kind in ['train', 'test']:
-        # if kind == 'train':
-        #     num_train = len(metrics[kind])#end+1 #- (end+1)//5
-        #     epochs = np.arange(0, num_train, 0.5)
-        # else:
-        #     num_test = end // (1 / config['test_frac'])
-        #     epochs = np.arange(0, num_test, 0.5)
-
-        # get accuracies and losses
-        # dir = f"{config['working_dir']}/{kind}"
-        # # lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-1]
-        # lastfile = sorted(glob.glob(f'{dir}/*.glados*'), key=os.path.getmtime)[-1]
-        # print(dir, lastfile)
-        # # lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-2]
-        # print(lastfile)
-        # losses, accuracies = [], []
-        # from tensorflow.python.summary.summary_iterator import summary_iterator
-        # for e in tf.train.summary_iterator(lastfile):
-        #     for v in e.summary.value:
-        #         if v.tag == 'loss' or v.tag == 'batch_loss':
-        #             losses.append(v.simple_value)
-        #         elif v.tag == 'accuracy' or v.tag == 'batch_sparse_categorical_accuracy':
-        #             accuracies.append(v.simple_value)
-
 
         # get the number of x values
-        num = len(metrics[kind][metric_types[0]])
+        num = len(metrics[kind][plot_metric_types[0]])
         if kind == 'train':
-            epochs = np.linspace(0, num * config['train']['cache_freq']/int(num_train/config['train']['batch_size']), num)
+            epochs = np.linspace(0, num * config['train']['cache_freq']/num_train, num)
         if kind == 'test':
-            epochs = np.linspace(0, num * config['train']['cache_freq']/int(num_test/config['train']['batch_size']), num)
+            epochs = np.linspace(0, num * config['train']['cache_freq']/num_test, num)
 
         # dprint(kind, end+1, len(epochs), len(metrics[kind][metric_types[0]]), losses)
-        for ax, metric_key in zip(axes, metric_types):
+        for ax, metric_key in zip(axes, plot_metric_types):
             metrics[kind]['lines'].append(ax.plot(epochs, metrics[kind][metric_key], c=metrics[kind]['color'],
                                                   label=kind))
 
@@ -374,7 +348,7 @@ def onetime_metric_streams(start=0, end=10):
         #     axes[-1].plot(epochs, accuracies[:len(epochs)], c=metrics[kind]['color'], label=kind)
         # except ValueError:
         #     print(f'epochs and losses wrong length ?! {len(epochs)}, {len(losses)} respectively')
-    axes[2].legend()
+    axes[0].legend()
 
     plt.show(block=True)
 
@@ -733,10 +707,15 @@ def trans_p2c(photons):
     return photons
 
 def pt_step(input_data, input_label, pred_val, loss, train=True):
-    pred_val = np.argmax(pred_val, axis=-1)
+    if not config['train']['roc_probabilities']:
+        pred_val = np.argmax(pred_val, axis=-1)
+
     with open(config['train']['pt_outputs'], 'ab') as handle:
         field_tup = (input_label, pred_val, input_data, loss, train)
         pickle.dump(field_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    if config['train']['roc_probabilities']:
+        pred_val = np.argmax(pred_val, axis=-1)
 
     pos = input_label == 1
     neg = input_label == 0
@@ -805,5 +784,5 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
     onetime_metric_streams(end = -1)
-    metric_tesseracts(start = 0, end = -1, jump=50)
+    metric_tesseracts(start = -10, end = -1, jump=1)
 
