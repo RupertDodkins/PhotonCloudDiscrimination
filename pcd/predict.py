@@ -17,7 +17,8 @@ import numpy as np
 
 import torch
 
-from examples.unet import UNet
+# from examples.unet import UNet
+from examples.minkunet import MinkUNet14A
 from pcd.config.config import config
 from pcd.input import load_dataset
 from pcd.train3 import reform_input
@@ -25,7 +26,8 @@ from pcd.visualization import pt_step, metric_tesseracts
 
 
 def predict():
-    net = UNet(in_nchannel=4, out_nchannel=2, D=4)
+    # net = UNet(in_nchannel=4, out_nchannel=2, D=4)
+    net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
     device = torch.device('cuda')
     net = net.to(device)
     net.load_state_dict(torch.load(config['savepath']))

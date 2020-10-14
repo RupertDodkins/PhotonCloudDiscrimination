@@ -10,6 +10,7 @@ from torch.optim import SGD
 
 import MinkowskiEngine as ME
 from examples.minkunet import MinkUNet34C, MinkUNet14A
+# from examples.unet import UNet
 
 from pcd.config.config import config
 from pcd.visualization import tf_step, pt_step
