@@ -110,7 +110,7 @@ class MecObs():
 
 def make_input(config, inject_fake_comp=False):
     if inject_fake_comp:
-        d = input.Data(config)
+        d = input.MedisParams(config)
 
     outfiles = np.append(config['trainfiles'], config['testfiles'])
     outfiles = [config['mec']['dark_data'] + file.split('/')[-1] for file in outfiles]

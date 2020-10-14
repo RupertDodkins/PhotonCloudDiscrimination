@@ -7,6 +7,10 @@ from matplotlib import gridspec
 from matplotlib.colors import LogNorm
 import random
 import h5py
+from vip_hci.medsub import medsub_source
+import pandas as pd
+pd.options.display.max_columns = None
+import scipy
 
 from medis.telescope import Telescope
 from medis.MKIDS import Camera
@@ -17,6 +21,7 @@ from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
 import utils
 from visualization import trans_p2c
+
 
 class MedisObs():
     """ Gets the photon lists from MEDIS """
@@ -50,8 +55,8 @@ class MedisObs():
                 photons = cam(fields=object_fields)['photons']
             else:
                 photons = np.empty((4,0))
+                tel.chunk_span = np.arange(0, sp.numframes+1, sp.checkpointing)
                 for ichunk in range(int(np.ceil(tel.num_chunks))):
-
                     fields = tel()['fields']
                     object_fields = fields[:, :, :, o][:, :, :, np.newaxis]
                     photons = np.hstack((photons, cam(fields=object_fields, abs_step=tel.chunk_span[ichunk])['photons']))
@@ -372,17 +377,157 @@ class NnReform(Reform):
         plt.show(block=True)
 
 
-class DtReform():
+class DtReform(Reform):
     def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None, dithered=False):
         super().__init__(photons, outfile, train_type, aug_ind, debug, rm_input, dithered)
-
-        self.aggregate_photons = NnReform.aggregate_photons
-        self.sort_photons = NnReform.sort_photons
 
         self.aggregate_photons()
         self.sort_photons()
 
-        self.get_tess()
+        self.df = pd.DataFrame({'time':self.all_photons[:,0],
+                                'wave':self.all_photons[:,1],
+                                'x':self.all_photons[:,2],
+                                'y':self.all_photons[:,3]})
+
+        cam = Camera(usesave=False, product='photons')
+
+        self.id_bins = np.arange(mp.array_size[0] * mp.array_size[1])
+        beammap = self.id_bins.reshape(mp.array_size)
+        self.id_bins = np.concatenate((self.id_bins, [self.id_bins[-1] + 1]), axis=0) - 0.5
+
+        self.df['res_id'] = beammap[self.df['x'].values.astype(int), self.df['y'].values.astype(int)]
+        # inds = np.digitize(res_id, self.id_bins)
+        self.df = self.df.sort_values(['res_id', 'time'])
+        I, _ = np.histogram(self.df['res_id'], self.id_bins)
+
+        # plt.imshow(I.reshape(cam.array_size))
+        self.df['I'] = I[self.df['res_id'].values] / max(I)
+
+        dt = self.df['time'].values - np.roll(self.df['time'].values,1,0)
+        trans = np.roll(self.df['res_id'].values,1,0) - self.df['res_id'].values != 0
+        dt[trans] = np.nan
+
+        # r = 0
+        # dt = np.zeros((len(self.df['I'])))
+        # for id, n in enumerate(I[:20]):
+        #     print(id, n)
+        #     for p in range(n):
+        #         if p == n-1:
+        #             dt[r] = np.nan
+        #         else:
+        #             dt[r] = res_sorted['time'].iloc[r+1]- res_sorted['time'].iloc[r]
+        #
+        #         r += 1
+
+        self.df['dtime'] = dt
+        self.df = self.df.sort_values('time')
+
+        # if config['data']['trans_polar']:
+        centered_x = self.df['x'].values - cam.array_size[1]/2
+        centered_y = self.df['y'].values - cam.array_size[0]/2
+        self.df['rad'] = np.sqrt(centered_x**2 + centered_y**2)
+        self.df['theta'] =  np.arctan2(centered_y, centered_x)
+
+        # rotated_y, rotated_x = np.zeros_like(centered_y), np.zeros_like(centered_x)
+        # self.df['derot_y'], self.df['derot_x'] = np.zeros_like(centered_y), np.zeros_like(centered_x)
+        # for p in range(len(self.photons[0])):
+        #     print(p)
+        #     angle = np.deg2rad(self.df['time'][p] * tp.rot_rate)
+        #     rot_matrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+        #     rotated_y[p], rotated_x[p] = np.dot(rot_matrix, np.array([centered_y[p], centered_x[p]]).T)
+        #     self.df['derot_y'][p], self.df['derot_x'][p] = rotated_y[p] + cam.array_size[1]/2, rotated_x[p] + cam.array_size[0]/2
+
+        angles = -np.deg2rad(self.df['time'] * tp.rot_rate)
+        self.df['derot_y'] = centered_y * np.cos(angles) - centered_x * np.sin(angles) + cam.array_size[1]/2  # x and y swap because that's how they're definied
+        self.df['derot_x'] = centered_y * np.sin(angles) + centered_x * np.cos(angles) + cam.array_size[1]/2
+
+        self.df['derot_x'][self.df['derot_x'] < 0] = 0
+        self.df['derot_x'][self.df['derot_x'] > cam.array_size[0] - 1] = cam.array_size[0] - 1
+
+        self.df['derot_y'][self.df['derot_y'] < 0] = 0
+        self.df['derot_y'][self.df['derot_y'] > cam.array_size[0] - 1] = cam.array_size[0] - 1
+
+        # fig = plt.figure()
+        # ax = fig.add_subplot(2,2,1)
+        # ax.imshow(np.histogram2d(self.df['y'], self.df['x'], bins=150)[0], norm=LogNorm())
+        # ax = fig.add_subplot(2, 2, 2)
+        # ax.imshow(np.histogram2d(self.df['derot_y'], self.df['derot_x'], bins=150)[0], norm=LogNorm())
+        # plt.show()
+
+        self.df['derot_res_id'] = beammap[self.df['derot_x'].values.astype(int), self.df['derot_y'].values.astype(int)]
+        I, _ = np.histogram(self.df['derot_res_id'], self.id_bins)
+
+        # plt.imshow(I.reshape(cam.array_size))
+
+        self.df['derot_I'] = I[self.df['derot_res_id'].values] /max(I)
+
+        Isub2d = self.map_I('derot_I')
+        fig = plt.figure()
+        ax = fig.add_subplot(3,2,1)
+        ax.imshow(Isub2d, norm=LogNorm())
+
+        # self.get_wavecube()
+        bins = [np.linspace(self.all_photons[:, 0].min(), self.all_photons[:, 0].max(), sp.numframes + 1),
+                np.arange(cam.array_size[0]+1),
+                np.arange(cam.array_size[1]+1)]
+
+        self.wavecube, edges = np.histogramdd(self.all_photons[:,[0,2,3]], bins=bins)
+
+        # adi_image = self.ADI()
+        # plt.imshow(adi_image)
+        # plt.show()
+        print(self.df.head())
+
+        model_psf = np.median(self.wavecube, axis=0)
+        cubesub = self.wavecube - model_psf
+        I_sub = np.sum(cubesub, axis=0).flatten()
+        # plt.imshow(I_sub.reshape(cam.array_size))
+        # plt.show()
+
+        ax = fig.add_subplot(3,2,3)
+        ax.imshow(np.sum(cubesub, axis=0), norm=LogNorm())
+        ax = fig.add_subplot(3, 2, 4)
+        ax.imshow(self.ADI(), norm=LogNorm())
+
+        self.df['I_sub'] = I_sub[self.df['res_id'].values] / max(I_sub)  # the brightness of pixels after median subtraction
+
+        Isub2d = self.map_I('I_sub')
+
+        self.df['derot_I_sub'] = I_sub[self.df['derot_res_id'].values]  # check this -- maybe just scale I_derot by I_sub
+
+        Iderot2d = self.map_I('derot_I_sub')
+
+        # fig = plt.figure()
+        ax = fig.add_subplot(3,2,5)
+        ax.imshow(Isub2d, norm=LogNorm())
+        ax = fig.add_subplot(3, 2, 6)
+        ax.imshow(Iderot2d, norm=LogNorm())
+        plt.show()
+
+        self.df = self.df.sort_values('derot_res_id')
+        # I_weight = np.zeros(len(self.df['derot_res_id']))
+        # for i, res_id in enumerate(self.df['derot_res_id'].values):
+        self.df['adi_prob'] = self.df['I_sub']/self.df['derot_I_sub']  #/self.df['I_sub'][i]
+
+    def map_I(self, I_col):
+        binned_I_sub, _, _ = scipy.stats.binned_statistic(self.df['res_id'], self.df[I_col], statistic='sum',
+                                                          bins=self.id_bins)
+        I2d = binned_I_sub.reshape(150,150)
+        return I2d
+
+    def ADI(self):
+        # grid(self.wavecube)
+        angle_list = -np.linspace(0, sp.numframes * sp.sample_time * tp.rot_rate, self.wavecube.shape[0])
+
+        adi_image = medsub_source.median_sub(self.wavecube, angle_list=angle_list, collapse='sum')
+        return adi_image
+
+    # def get_wavecube(self):
+    #     bins = [np.linspace(self.all_photons[:, 0].min(), self.all_photons[:, 0].max(), sp.numframes + 1),
+    #             np.arange(self.cam.array_size[0]+1),
+    #             np.arange(self.cam.array_size[1]+1)]
+    #
+    #     self.wavecube, edges = np.histogramdd(self.all_photons[:,[0,2,3]], bins=bins)
 
     def get_tess(self):
         bins = [np.linspace(self.all_photons[:, 0].min(), self.all_photons[:, 0].max(), sp.numframes + 1),
@@ -457,7 +602,7 @@ def make_input(config):
             print('Already exists')
         else:
             if not aug_ind:  # any number > 0
-                obs = MedisObs(f'{i}', next(mp()), debug=True)
+                obs = MedisObs(f'{i}', next(mp()), debug=False)
                 photons = obs.photons
 
             if config['model'] == 'minkowski':
