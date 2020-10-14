@@ -11,6 +11,7 @@ import numpy as np
 from vip_hci import pca
 from vip_hci.medsub import medsub_source
 from vip_hci.metrics import contrcurve
+from vip_hci.preproc import cube_derotate
 from medis.params import ap, sp, mp, tp
 from medis.plot_tools import grid
 
@@ -21,7 +22,7 @@ home = os.path.expanduser("~")
 sp.numframes = 100
 sp.sample_time = 0.05
 
-def get_reduced_images(ind=1, use_spec=False):
+def get_reduced_images(ind=1, use_spec=False, plot=False):
     """ Looks for reduced images file in the home folder and returns if it exists. If you're on the local machine
     and the file has not been transferred it will throw a FileNotFoundError """
     # if home == '/Users/dodkins':
@@ -55,9 +56,6 @@ def get_reduced_images(ind=1, use_spec=False):
         wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], all_tess.shape[0])
         scale_list = wsamples / (ap.wvl_range[1] - ap.wvl_range[0])
 
-
-
-
         # all_pca = pca.pca(all_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
         #                 adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
         #
@@ -78,11 +76,16 @@ def get_reduced_images(ind=1, use_spec=False):
         planet_med = medsub_source.median_sub(np.sum(planet_tess, axis=0), angle_list=angle_list,
                                               collapse='sum')
 
-    reduced_images = np.array([[all_raw, star_raw, planet_raw], [all_med, star_med, planet_med]])
+    all_derot = np.sum(cube_derotate(np.sum(all_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
+    star_derot = np.sum(cube_derotate(np.sum(star_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
+    planet_derot = np.sum(cube_derotate(np.sum(planet_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
+
+    reduced_images = np.array([[all_derot, star_derot, planet_derot], [all_med, star_med, planet_med]])
     # reduced_images = np.array([[all_raw, star_raw, planet_raw]])
 
     # grid(reduced_images, logZ=True, vlim=(1,50))  #, vlim=(1,70)
-    grid(reduced_images, vlim=(-9,40))  #, vlim=(1,70)
+    if plot:
+        grid(reduced_images, vlim=(-9,40))  #, vlim=(1,70)
 
     return reduced_images
 
@@ -256,11 +259,17 @@ def ROC_curve():
     plt.legend(loc="lower right")
     plt.show()
 
-def contrast_curve(): 
-    pass
+def contrast_curve():
+    reduced_images = get_reduced_images(ind=-1)
+    raw = reduced_images[0,0]
+    PCA = reduced_images[1,0]
+    PCD = reduced_images[1,2]
+    grid([raw, PCA, PCD], vlim=(1,200), logZ=False)
+
 
 
 if __name__ == '__main__':
     # get_reduced_images(ind=-2)
     # plot_3D_pointclouds()
-    ROC_curve()
+    # ROC_curve()
+    contrast_curve()
