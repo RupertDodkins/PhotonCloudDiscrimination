@@ -58,7 +58,6 @@ for astro in ['angles', 'lods', 'contrasts', 'planet_spectra']:
         bounds = np.float_(config['data'][astro].split(','))
         config['data'][astro] = np.random.uniform(bounds[0], bounds[1], config['data']['num_indata'])
 
-
 num_test = config['data']['num_indata'] * config['data']['test_frac']
 num_test = int(num_test)
 num_train = config['data']['num_indata'] - num_test
