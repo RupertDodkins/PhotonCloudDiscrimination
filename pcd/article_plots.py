@@ -49,7 +49,7 @@ def get_reduced_images(ind=1, use_spec=False):
     star_raw = np.sum(star_tess, axis=(0,1))
     planet_raw = np.sum(planet_tess, axis=(0,1))
 
-    angle_list = np.linspace(0, sp.numframes * sp.sample_time * tp.rot_rate, all_tess.shape[1])
+    angle_list = -np.linspace(0, 2 * sp.numframes * sp.sample_time * tp.rot_rate, all_tess.shape[1])
 
     if use_spec:
         wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], all_tess.shape[0])
@@ -118,8 +118,12 @@ def plot_reduced_images(ind=-1):
 
 def plot_3D_pointclouds():
     alldata = load_meta()
-    cur_seg, pred_seg_res, cur_data, trainbool = alldata[-1]
+    cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-5]
     del alldata
+
+    cur_data[:,0] = (cur_data[:,0] + 200) * 30/400
+    cur_data[:,2] = (cur_data[:,2] + 200) * 150/400
+    cur_data[:,3] = (cur_data[:,3] + 200) * 150/400
 
     metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
 
@@ -127,9 +131,6 @@ def plot_3D_pointclouds():
                                                int(np.sum(metrics[2])), int(np.sum(metrics[3])),
 
     print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
-    cur_data = cur_data[:, :, [0, 2, 1, 3]]
-
-    # fig = plt.figure()
     all_photons = np.concatenate(
         (cur_data[metrics[0]], cur_data[metrics[1]], cur_data[metrics[2]], cur_data[metrics[3]]),
         axis=0)
@@ -138,33 +139,47 @@ def plot_3D_pointclouds():
 
     neg = cur_seg == 0
     pos = cur_seg == 1
-    true_star_photons = cur_data[neg]
-    true_planet_photons = cur_data[pos]
+
+    degrade_factor = 50
+
+    true_star_photons = cur_data[neg][::degrade_factor]
+    true_planet_photons = cur_data[pos][::degrade_factor]
 
     print(len(all_photons), len(true_star_photons), len(true_planet_photons), len(planet_photons))
 
     fig = plt.figure(figsize=(17,6))
-    degrade_factor = 2
     all_photons, star_photons, planet_photons = all_photons[::degrade_factor], star_photons[::degrade_factor], planet_photons[::degrade_factor]
     ax = fig.add_subplot(131, projection='3d')
     ax.view_init(30, -210)
+    ax.set_xlabel('Time (m)')
+    ax.set_ylabel('RA pixel')
+    ax.set_zlabel('Dec pixel')
+    # plt.axis('off')
     # ax.zaxis_inverted()
+
     ax.set_title('Raw Input')
-    ax.scatter(all_photons[:,0], all_photons[:,2], all_photons[:,3], s=1, alpha=0.1, c='grey')
+    ax.scatter(all_photons[:,0], all_photons[:,2], all_photons[:,3], s=2, alpha=1, c='grey')
 
     ax = fig.add_subplot(132, projection='3d')
     ax.view_init(30, -210)
+    ax.set_xlabel('Time (m)')
+    ax.set_ylabel('RA pixel')
+    ax.set_zlabel('Dec pixel')
+    # plt.axis('off')
     # ax.zaxis_inverted()
     ax.set_title('Predictions')
-    ax.scatter(star_photons[:, 0], star_photons[:, 2], star_photons[:, 3], s=1, alpha=0.1)
-    ax.scatter(planet_photons[:, 0], planet_photons[:, 2], planet_photons[:, 3], s=1, alpha=0.1, c='red')
+    ax.scatter(star_photons[:, 0], star_photons[:, 2], star_photons[:, 3], s=2, alpha=1)
+    ax.scatter(planet_photons[:, 0], planet_photons[:, 2], planet_photons[:, 3], s=2, alpha=1, c='red')
 
     ax = fig.add_subplot(133, projection='3d')
     ax.view_init(30, -210)
+    ax.set_xlabel('Time (m)')
+    ax.set_ylabel('RA pixel')
+    ax.set_zlabel('Dec pixel')
     # ax.zaxis_inverted()
     ax.set_title('Ground Truth')
-    ax.scatter(true_star_photons[:, 0], true_star_photons[:, 2], true_star_photons[:, 3], s=1, alpha=0.1)
-    ax.scatter(true_planet_photons[:, 0], true_planet_photons[:, 2], true_planet_photons[:, 3], s=1, alpha=0.1, c='red')
+    ax.scatter(true_star_photons[:, 0], true_star_photons[:, 2], true_star_photons[:, 3], s=2, alpha=1)
+    ax.scatter(true_planet_photons[:, 0], true_planet_photons[:, 2], true_planet_photons[:, 3], s=2, alpha=1, c='red')
     # ax.scatter(star_photons[:, 0], star_photons[:, 2], star_photons[:, 3], s=1, alpha=0.1)
     # ax.scatter(planet_photons[:, 0], planet_photons[:, 2], planet_photons[:, 3], s=1, alpha=0.1, c='red')
 
@@ -225,8 +240,27 @@ def get_tess(ind=-1):
 
     return all_tess, star_tess, planet_tess
 
+def ROC_curve():
+    amount = -1
+    print('amount = ', amount)
+    alldata = load_meta(kind='pt_outputs', amount=amount)
+    cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-amount]
+    del alldata
+
+    from sklearn.metrics import roc_curve, auc
+    fpr, tpr, _ = roc_curve(cur_seg,pred_seg_res[:,1])
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.legend(loc="lower right")
+    plt.show()
+
+def contrast_curve(): 
+    pass
+
+
 if __name__ == '__main__':
-    get_reduced_images(ind=-1)
-    # for i in range(0,25,5):
-    #     get_reduced_images(ind=i)
+    # get_reduced_images(ind=-2)
     # plot_3D_pointclouds()
+    ROC_curve()
