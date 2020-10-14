@@ -545,17 +545,18 @@ class MedisParams():
         self.contrasts = np.power(np.ones((config['data']['num_indata']))*10, config['data']['contrasts'])
         if config['data']['null_frac'] > 0:
             self.contrasts[::int(1 / config['data']['null_frac'])] = 0
-        # invalid_contrast = np.array(config['data']['contrasts']) == -10
-        # self.contrasts[invalid_contrast] = 0
+        invalid_contrast = np.array(config['data']['contrasts']) > 0
+        self.contrasts[invalid_contrast] = 0
         disp = config['data']['lods']
         angle = config['data']['angles']
         self.lods = (np.array([np.sin(np.deg2rad(angle)),np.cos(np.deg2rad(angle))])*disp).T
 
         self.spectra = [(config['data']['star_spectra'], p_spec) for p_spec in config['data']['planet_spectra']]
-        # self.trainfiles, self.testfiles = self.get_filenames()
+
+        self.tups = zip(self.contrasts, self.lods, self.spectra)
 
     def __call__(self, *args, **kwargs):
-        return zip(self.contrasts, self.lods, self.spectra)
+        return next(self.tups)
 
 
 def load_h5(h5_filename):
@@ -602,7 +603,7 @@ def make_input(config):
             print('Already exists')
         else:
             if not aug_ind:  # any number > 0
-                obs = MedisObs(f'{i}', next(mp()), debug=False)
+                obs = MedisObs(f'{i}', mp(), debug=False)
                 photons = obs.photons
 
             if config['model'] == 'minkowski':
@@ -610,9 +611,9 @@ def make_input(config):
             elif config['model'] == 'lightgbm':
                 reformer = DtReform
 
-            reformer(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
-            reformer.process_photons()
-            reformer.save_class()
+            r = reformer(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
+            r.process_photons()
+            r.save_class()
 
     workingdir_config = config['working_dir'] + 'config.yml'
     repo_config = os.path.join(os.path.dirname(__file__), 'config/config.yml')
