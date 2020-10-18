@@ -265,8 +265,6 @@ class NnReform(Reform):
             self.chunked_pids = red_pids.reshape(1, self.num_point, 1, order='F')
 
     def save_class(self):
-        # if self.aug_ind:
-        #     self.aug_input()
 
         num_input = len(self.chunked_photons)  # 16
 
@@ -314,7 +312,7 @@ class NnReform(Reform):
             except OSError as e:
                 print("Error: %s - %s." % (e.filename, e.strerror))
 
-    def aug_input(self, astro):
+    def adjust_companion(self, astro):
         # brightness change
         ratio = astro[0] / 10 ** config['data']['contrasts'][0]
         assert ratio <= 1
@@ -619,10 +617,7 @@ def make_input(config):
 
             r = reformer(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
             r.process_photons()
-
-            if aug_ind:
-                r.aug_input(mp(i))
-
+            r.adjust_companion(mp(i))
             r.save_class()
 
     workingdir_config = config['working_dir'] + 'config.yml'
