@@ -33,7 +33,8 @@ def predict():
     net.load_state_dict(torch.load(config['savepath']))
     net.eval()
 
-    evalfiles = np.append(config['trainfiles'], config['testfiles'])
+    # evalfiles = np.append(config['trainfiles'], config['testfiles'])
+    evalfiles = config['testfiles']
 
     # for evalfile in config['mec']['glados_inputfiles']:
     for evalfile in evalfiles:
@@ -51,4 +52,4 @@ def predict():
 
 if __name__ == '__main__':
     predict()
-    metric_tesseracts(start = 0, end = -1, jump=1, type='eval')
+    # metric_tesseracts(start = 0, end = -1, jump=1, type='eval')

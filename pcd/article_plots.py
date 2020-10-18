@@ -8,9 +8,10 @@ import matplotlib.pylab as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.mplot3d import Axes3D  # don't listen to pycharm this is necessary
 import numpy as np
+from scipy.interpolate import InterpolatedUnivariateSpline
 from vip_hci import pca
 from vip_hci.medsub import medsub_source
-from vip_hci.metrics import contrcurve
+from vip_hci.metrics import contrcurve, aperture_flux, noise_per_annulus
 from vip_hci.preproc import cube_derotate
 from medis.params import ap, sp, mp, tp
 from medis.plot_tools import grid
@@ -22,7 +23,7 @@ home = os.path.expanduser("~")
 sp.numframes = 100
 sp.sample_time = 0.05
 
-def get_reduced_images(ind=1, use_spec=False, plot=False):
+def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True):
     """ Looks for reduced images file in the home folder and returns if it exists. If you're on the local machine
     and the file has not been transferred it will throw a FileNotFoundError """
     # if home == '/Users/dodkins':
@@ -56,15 +57,16 @@ def get_reduced_images(ind=1, use_spec=False, plot=False):
         wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], all_tess.shape[0])
         scale_list = wsamples / (ap.wvl_range[1] - ap.wvl_range[0])
 
-        # all_pca = pca.pca(all_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-        #                 adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
-        #
-        # star_pca = pca.pca(star_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-        #                 adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
-        #
-        # planet_pca = pca.pca(planet_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-        #                 adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
+        all_pca = pca.pca(all_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
+                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
+
+        star_pca = pca.pca(star_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
+                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
+
+        planet_pca = pca.pca(planet_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
+                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
         # reduced_images = np.array([[all_raw, star_raw, planet_raw], [all_pca, star_pca, planet_pca]])
+
 
         all_med = medsub_source.median_sub(all_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
         star_med = medsub_source.median_sub(star_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
@@ -80,7 +82,7 @@ def get_reduced_images(ind=1, use_spec=False, plot=False):
     star_derot = np.sum(cube_derotate(np.sum(star_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
     planet_derot = np.sum(cube_derotate(np.sum(planet_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
 
-    reduced_images = np.array([[all_derot, star_derot, planet_derot], [all_med, star_med, planet_med]])
+    reduced_images = np.array([[all_derot, star_derot, planet_derot], [all_pca, star_pca, planet_pca]])#, [all_med, star_med, planet_med]])
     # reduced_images = np.array([[all_raw, star_raw, planet_raw]])
 
     # grid(reduced_images, logZ=True, vlim=(1,50))  #, vlim=(1,70)
@@ -206,6 +208,7 @@ def get_photons(amount=1):
     metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
     true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
                                                int(np.sum(metrics[2])), int(np.sum(metrics[3])),
+    print(trainbool)
     print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
 
     # cur_data = cur_data[:, :, [0, 2, 1, 3]]
@@ -232,8 +235,8 @@ def get_tess(ind=-1):
     # bins = [150] * 4
     bins = [np.linspace(all_photons[:,0].min(), all_photons[:,0].max(), sp.numframes + 1),
             np.linspace(all_photons[:,1].min(), all_photons[:,1].max(), ap.n_wvl_final + 1),
-            np.linspace(-200, 200, 100),
-            np.linspace(-200, 200, 100)]
+            np.linspace(-200, 200, 151),
+            np.linspace(-200, 200, 151)]
 
     all_tess, edges = np.histogramdd(all_photons, bins=bins)
 
@@ -259,17 +262,131 @@ def ROC_curve():
     plt.legend(loc="lower right")
     plt.show()
 
-def contrast_curve():
-    reduced_images = get_reduced_images(ind=-1)
-    raw = reduced_images[0,0]
-    PCA = reduced_images[1,0]
-    PCD = reduced_images[1,2]
-    grid([raw, PCA, PCD], vlim=(1,200), logZ=False)
+def view_reduced():
+    trios = []
+    for i in range(6,21,1):
+        reduced_images = get_reduced_images(ind=-i, plot=False)
+        PCA = reduced_images[1,0]
+        PCD = reduced_images[0,2]
+        PCDPCA = reduced_images[1,2]
+        trio = np.array([PCA, PCD, PCDPCA])
+        trio[trio<=0] = 0.1
+        trios.append(trio)
+
+        if i % 5 == 0:
+            print(i)
+            grid(trios, logZ=True, vlim=(1,60), show=False)
+            trios = []
+
+    plt.show(block=True)
+
+def contrast_curves():
+    thrus = np.zeros((4,5,3))  # 4 conts, 5 rad, 3 types
+    r = range(73)
+    stds = np.zeros((1,len(r),3))
+    fwhm = 5 #8.5
+    planet_locs = np.array([[39,36],[46,44],[53,51],[60,59],[66,65]])
+    loc_rads = np.sqrt(np.sum((75-planet_locs)**2, axis=1))
+
+    imlistsfile = 'imlists.npy'
+    if os.path.exists(imlistsfile):
+        with open(imlistsfile, 'rb') as f:
+            imlists = np.load(f)
+    else:
+        imlists = []
+        alldata = load_meta(kind='pt_outputs')
+        for ix, rev_ind in enumerate(range(1, 21, 1)): #1,21
+
+            cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-rev_ind]
+            metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
+
+            true_star_photons = np.concatenate((cur_data[metrics[1]], cur_data[metrics[3]]), axis=0)
+
+            bins = [np.linspace(true_star_photons[:, 0].min(), true_star_photons[:, 0].max(), sp.numframes + 1),
+                    np.linspace(true_star_photons[:, 1].min(), true_star_photons[:, 1].max(), ap.n_wvl_final + 1),
+                    np.linspace(-200, 200, 151),
+                    np.linspace(-200, 200, 151)]
+
+            true_star_tess, edges = np.histogramdd(true_star_photons, bins=bins)
+
+            true_star_tess = np.transpose(true_star_tess, axes=(1, 0, 2, 3))
+            angle_list = -np.linspace(0, 2 * sp.numframes * sp.sample_time * tp.rot_rate, true_star_tess.shape[1])
+            star_derot = np.sum(
+                cube_derotate(np.sum(true_star_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
+
+            reduced_images = get_reduced_images(ind=-rev_ind, plot=False)
+
+            PCA = reduced_images[1, 0]
+            PCD = reduced_images[0, 2]
+            PCDPCA = reduced_images[1, 2]
+
+            imlist = np.array([star_derot, PCA, PCD, PCDPCA])
+            # imlist[imlist <= 0] = 0.01
+            imlists.append(imlist)
+
+        with open(imlistsfile, 'wb') as f:
+            np.save(f, np.array(imlists))
+
+    for ix in range(20):
+        imlist = imlists[ix]
+        star_derot, PCA, PCD, PCDPCA = imlist
+        cont_ind = ix //5
+        r_ind = ix % 5
+
+        plot = False
+        # if cont_ind >= 0:
+        #     plot = True
+
+        # true_flux = aperture_flux(planet_derot, [planet_locs[r_ind,0]],[planet_locs[r_ind,1]], fwhm, plot=plot)[0]
+        # measured = np.array([aperture_flux(PCA, [planet_locs[r_ind,0]],[planet_locs[r_ind,1]], fwhm, plot=plot)[0],
+        #                      aperture_flux(PCD, [planet_locs[r_ind,0]], [planet_locs[r_ind,1]], fwhm, plot=plot)[0],
+        #                      aperture_flux(PCDPCA, [planet_locs[r_ind,0]], [planet_locs[r_ind,1]], fwhm, plot=plot)[0]
+        #                      ])
 
 
+        # print(ix, cont_ind, r_ind, measured/true_flux, true_flux)
+        # thrus[cont_ind, r_ind] = measured/true_flux
+
+        if cont_ind == 0: #4-1:
+            std = np.array([noise_per_annulus(PCA, 1, fwhm)[0],
+                            noise_per_annulus(PCD, 1, fwhm)[0],
+                            noise_per_annulus(PCDPCA, 1, fwhm)[0]
+                            ])
+            stds[0] = std.T
+
+    # mean_thrus = np.mean(thrus[2:], axis=0)
+    full_thru = noise_per_annulus(star_derot, 1, fwhm, mean_per_ann=True)[0]
+    # full_thrus = []
+    fig = plt.figure()
+    ax1 = fig.add_subplot(1, 3, 1)
+    ax2 = fig.add_subplot(1, 3, 2)
+    ax3 = fig.add_subplot(1, 3, 3)
+    labels = ['PCA', 'PCD (sum)', 'PCD + PCA']
+    for i in range(3):
+        # ax1.plot(loc_rads[::-1], mean_thrus[:,i][::-1], 'o')
+        # f = InterpolatedUnivariateSpline(loc_rads[::-1], mean_thrus[:,i][::-1], k=1, ext=3)  # switch order since furthest out is first
+        # full_thru = f(r)
+        # full_thru[full_thru<=0] = 0.01
+
+        sensitivity = stds[0,:,i] /max(full_thru)
+        ax1.plot(full_thru)
+        ax2.plot(stds[0,:,i])
+        ax3.plot(sensitivity)
+    ax1.set_yscale("log")
+    ax2.set_yscale("log")
+    ax3.set_yscale("log")
+
+        # plt.plot(sensitivity/1e5, label=labels[i])
+    # plt.yscale("log")
+    # plt.legend()
+    plt.show(block=True)
+
+        # grid(imlist, logZ=True, vlim=(1,60), show=False)
+    # plt.show(block=True)
 
 if __name__ == '__main__':
     # get_reduced_images(ind=-2)
     # plot_3D_pointclouds()
     # ROC_curve()
-    contrast_curve()
+    # view_reduced()
+    contrast_curves()

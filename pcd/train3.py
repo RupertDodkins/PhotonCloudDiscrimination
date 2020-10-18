@@ -25,7 +25,7 @@ def reform_input(coords, labels, device):
 
     coords, feats, labels = coords[0], feats[0], labels[0]
     if config['data']['quantize']:
-        quantization_size = 0.005 * 10**((config['num_point'] / 131072) - 1)  # = 0.005 for num_point==131072, 0.05 for num_point== 262144
+        quantization_size = 0.005 #* 10**((config['num_point'] / 131072) - 1)  # = 0.005 for num_point==131072, 0.05 for num_point== 262144
         coords, feats, labels = ME.utils.sparse_quantize(
             coords=coords,
             feats=feats,
@@ -45,6 +45,8 @@ def reform_input(coords, labels, device):
                                coords=coords_pt,
                                quantization_mode=ME.SparseTensorQuantizationMode.UNWEIGHTED_AVERAGE
                                ).to(device)
+
+    print(labels[labels==1].shape)
 
     return input_pt, labels_pt, coords, feats, labels
 

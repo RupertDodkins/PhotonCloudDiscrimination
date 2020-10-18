@@ -410,6 +410,10 @@ def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos)
                 '         0   |  1\n'
                 '           True' % (false_pos / tot_neg, true_pos / tot_pos,
                                      true_neg / tot_neg, false_neg / tot_pos))
+    print('true_pos: %f' % (true_pos))
+    print('true_neg: %f' % (true_neg))
+    print('false_pos: %f' % (false_pos))
+    print('false_neg: %f' % (false_neg))
     return conf
 
 
@@ -726,16 +730,16 @@ def pt_step(input_data, input_label, pred_val, loss, train=True):
     false_neg = int(np.sum(np.logical_and(pos, np.round(pred_val) == 0)))
     conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
 
-    print('true_pos: %f' % (true_pos))
-    print('true_neg: %f' % (true_neg))
-    print('false_pos: %f' % (false_pos))
-    print('false_neg: %f' % (false_neg))
+    # print('true_pos: %f' % (true_pos))
+    # print('true_neg: %f' % (true_neg))
+    # print('false_pos: %f' % (false_pos))
+    # print('false_neg: %f' % (false_neg))
     print(conf)
-    try:
-        print('Precision: %f' % (true_pos / (true_pos + false_pos)))
-        print('Recall: %f' % (true_pos / (true_pos + false_neg)))
-    except ZeroDivisionError:
-        pass
+    # try:
+    #     print('Precision: %f' % (true_pos / (true_pos + false_pos)))
+    #     print('Recall: %f' % (true_pos / (true_pos + false_neg)))
+    # except ZeroDivisionError:
+    #     pass
 
 def tf_step(input_data, input_label, pred_val, train=True):
     """ Get values of tensors to save them and read by metric_tesseracts """
@@ -766,10 +770,6 @@ def tf_step(input_data, input_label, pred_val, train=True):
     conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos,
                             true_pos + false_neg)
 
-    print('true_pos: %f' % (true_pos))
-    print('true_neg: %f' % (true_neg))
-    print('false_pos: %f' % (false_pos))
-    print('false_neg: %f' % (false_neg))
     print(conf)
     try:
         print('Precision: %f' % (true_pos / (true_pos + false_pos)))
@@ -783,6 +783,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
-    onetime_metric_streams(end = -1)
-    metric_tesseracts(start = -10, end = -1, jump=1)
+    # onetime_metric_streams(end = -1)
+    metric_tesseracts(start = -6, end = -3, jump=1)
 
