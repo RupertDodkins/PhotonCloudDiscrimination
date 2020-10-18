@@ -1,9 +1,9 @@
 debug: True
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 201014c/]  # concat DIR with that suffix and store as WDIR
+working_dir: &WDIR !join [*DIR, 201017b/]  # concat DIR with that suffix and store as WDIR
 overwrite_cache: False
 pointnet_version: 2
-num_point: &PN 262144  #  # 131072
+num_point: &PN 200000  #  # 131072 262144
 trainfiles: !join [*WDIR, 'trainfile_{id}.h5']
 testfiles: !join [*WDIR, 'testfile_{id}.h5']
 dimensions: 4
@@ -13,14 +13,18 @@ model:  minkowski  # lightgbm  #
 savepath: !join [*WDIR, 'test95.pth']
 
 data:
-  num_indata: 12  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
+  num_indata: 10  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
   null_frac: 0.  # num of input data that are null (no planet photons)
-  test_frac: 0.25
-  aug_ratio: 0  # For every 1 medis input duplicate and rotate it {aug_ratio} times
+  test_frac: 0.1
+  aug_ratio: 9  # For every 1 medis input duplicate and rotate it {aug_ratio} times
   medis_config: "medis_params.py"
-  angles: (0,360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
-  lods: [1,3,5,1,3,5,1,3,5,1,3,5]  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
-  contrasts: [-2,-2,-2,-3,-3,-3,-4,-4,-4,-4,-4,-4]   # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  angles: 45  #(0,360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+#  lods: [1,3,5,1,3,5,1,3,5,1,3,5,1,3,5,1,3,5,3,5]  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+#  contrasts: [-2,-2,-2,-3,-3,-3,-4,-4,-4,-4,-4,-4,-3,-3,-3,-2,-2,-2,-4,-5]  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+#  lods: [1,2,3,4,5,1,2,3,4,5,1,2,3,4,5,1,2,3,4,5]
+#  contrasts: [-2,-2,-2,-2,-2,-3,-3,-3,-3,-3,-4,-4,-4,-4,-4,-5,-5,-5,-5,-5]
+  lods: [1,7,5,1,2,3,4,5,1,2,3,4,5,1,2,3,4,5]
+  contrasts: [-2,-2,-2,-3,-3,-3,-3,-3,-4,-4,-4,-4,-4,-5,-5,-5,-5,-5]
   star_spectra: 6000
   planet_spectra: (1000,1000) # length(num_indata) + 1
 #  num_augs: 4  # number of rotations to apply to each input
@@ -29,6 +33,7 @@ data:
 #  normalize: False
   quantize: True
   batch_coords: True
+  rot_rate: 1  # deg/min
 
 train:
   gpu: 1

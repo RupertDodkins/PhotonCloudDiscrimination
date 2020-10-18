@@ -47,7 +47,7 @@ with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.yml"
 # deduce astro params
 for astro in ['angles', 'lods', 'contrasts', 'planet_spectra']:
     if isinstance(config['data'][astro], list):
-        assert len(config['data'][astro]) == config['data']['num_indata']
+        config['data'][astro] = config['data'][astro][:config['data']['num_indata']]
 
     elif isinstance(config['data'][astro], int):
         config['data'][astro] = [config['data'][astro]] * config['data']['num_indata']
