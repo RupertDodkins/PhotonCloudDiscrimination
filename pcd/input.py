@@ -251,7 +251,7 @@ class NnReform(Reform):
         # remove residual photons that won't fit into a input cube for the network
         total_photons = sum([len(self.photons[i]) for i in range(self.num_classes)])
         cut = int(total_photons % self.num_point)
-        # dprint(cut)
+        dprint(total_photons, cut)
         rand_cut = random.sample(range(total_photons), cut)
         red_photons = np.delete(self.all_photons, rand_cut, axis=0)
         red_pids = np.delete(self.all_pids, rand_cut, axis=0)
@@ -265,8 +265,8 @@ class NnReform(Reform):
             self.chunked_pids = red_pids.reshape(1, self.num_point, 1, order='F')
 
     def save_class(self):
-        if self.aug_ind:
-            self.aug_input()
+        # if self.aug_ind:
+        #     self.aug_input()
 
         num_input = len(self.chunked_photons)  # 16
 
@@ -314,18 +314,26 @@ class NnReform(Reform):
             except OSError as e:
                 print("Error: %s - %s." % (e.filename, e.strerror))
 
-    def aug_input(self):
-        rot_rate = 360. / (config['data']['aug_ratio'] + 1)
-        angle = np.deg2rad(rot_rate * self.aug_ind)
-        rot_matrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
-        # rot_matrix = np.array(rot_matrix)[:,:,np.newaxis, np.newaxis]
+    def aug_input(self, astro):
+        # brightness change
+        ratio = astro[0] / 10 ** config['data']['contrasts'][0]
+        assert ratio <= 1
+        planet_inds = np.where(self.chunked_pids[0,:,0])[0]
+        red_planet_inds = np.random.choice(planet_inds, int(len(planet_inds) * (1-ratio)))
+        self.chunked_pids = np.delete(self.chunked_pids, red_planet_inds, axis=1)
+        self.chunked_photons = np.delete(self.chunked_photons, red_planet_inds, axis=1)
 
-        rotated_photons = self.chunked_photons * 1
-        for i in range(len(self.chunked_photons)):
-            # self.chunked_photons[i,(self.chunked_pids[i,:,0] == 1)] = np.dot(rot_matrix, self.chunked_photons[i,(self.chunked_pids[i,:,0] == 1)])
-            rotated_photons[i,:,[2,3]] = np.dot(rot_matrix, self.chunked_photons[i,:,[2,3]])
-            self.chunked_photons[i, (self.chunked_pids[i, :, 0] == 1)] = rotated_photons[i, (self.chunked_pids[i, :, 0] == 1)]
-        dprint(rot_rate, self.aug_ind, angle, rot_matrix)
+        # location changes
+        planet_inds = np.where(self.chunked_pids[0, :, 0])[0]
+        planet_photons = self.chunked_photons[0,planet_inds]
+        angles = -np.deg2rad((planet_photons[:,0]+1) *0.5 * sp.numframes * sp.sample_time * config['data']['rot_rate']/60)
+        yc, xc = np.mean(planet_photons[:,2]), np.mean(planet_photons[:,3])
+        rad_offset = astro[1] * 2 * 10 / 150
+        planet_photons[:,3] += -xc + rad_offset[1]
+        planet_photons[:,2] += -yc + rad_offset[0]
+        planet_photons[:,3] = planet_photons[:,3] * np.cos(angles) - planet_photons[:,2] * np.sin(angles) + xc
+        planet_photons[:,2] = planet_photons[:,3] * np.sin(angles) + planet_photons[:,2] * np.cos(angles) + yc
+        self.chunked_photons[0, planet_inds] = planet_photons
 
     def display_chunk_cloud(self, downsamp=10):
         fig = plt.figure()
@@ -553,11 +561,8 @@ class MedisParams():
 
         self.spectra = [(config['data']['star_spectra'], p_spec) for p_spec in config['data']['planet_spectra']]
 
-        self.tups = zip(self.contrasts, self.lods, self.spectra)
-
-    def __call__(self, *args, **kwargs):
-        return next(self.tups)
-
+    def __call__(self, ix, *args, **kwargs):
+        return (self.contrasts[ix], self.lods[ix], self.spectra[ix])
 
 def load_h5(h5_filename):
     f = h5py.File(h5_filename)
@@ -590,6 +595,7 @@ def make_input(config):
     # get info on each photoncloud
     outfiles = np.append(config['trainfiles'], config['testfiles'])
     debugs = [True] * config['data']['num_indata']
+    debugs[0] = False
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)
@@ -603,7 +609,7 @@ def make_input(config):
             print('Already exists')
         else:
             if not aug_ind:  # any number > 0
-                obs = MedisObs(f'{i}', mp(), debug=False)
+                obs = MedisObs(f'{i}', mp(i), debug=False)
                 photons = obs.photons
 
             if config['model'] == 'minkowski':
@@ -613,6 +619,10 @@ def make_input(config):
 
             r = reformer(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
             r.process_photons()
+
+            if aug_ind:
+                r.aug_input(mp(i))
+
             r.save_class()
 
     workingdir_config = config['working_dir'] + 'config.yml'
