@@ -21,7 +21,7 @@ import torch
 from examples.minkunet import MinkUNet14A
 from pcd.config.config import config
 from pcd.input import load_dataset
-from pcd.train3 import reform_input
+from pcd.train import reform_input
 from pcd.visualization import pt_step, metric_tesseracts
 
 

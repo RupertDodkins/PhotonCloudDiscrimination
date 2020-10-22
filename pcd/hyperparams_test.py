@@ -5,12 +5,18 @@ import shutil
 
 from vip_hci.metrics import contrcurve, aperture_flux, noise_per_annulus
 
-from pcd.train3 import train
+from pcd.train import train
 from pcd.predict import predict
 from pcd.article_plots import get_reduced_images
 from pcd.config.config import config
 
 def step_performance():
+    """
+    config for making the input data is in
+
+    :return:
+    """
+
     # config['testfiles'] = config['testfiles'][-1:]  # just select first example
     config['testfiles'] = config['testfiles'][:1]
 
@@ -24,9 +30,9 @@ def step_performance():
     lod_conts = np.zeros((len(lods),len(steps)))
     rad = np.arange(73)
 
-    thruput = np.array([0.01,0.01,2,2,3,3])/3.
+    thruput = np.array([0.01,1,2,2,3,3])/3.
     for s in range(len(steps)):
-        
+
         # create model saves
         config['savepath'] = config['working_dir']+savepth.format(steps[s])
         if not os.path.exists(config['savepath']):
@@ -60,9 +66,12 @@ def step_performance():
             lod_conts[id,s] = np.mean(sensitivity[lod_ind])
     plt.yscale('log')
     plt.figure()
-    for lod_cont in lod_conts:
-        plt.plot(steps, lod_cont)
+    for il, lod_cont in enumerate(lod_conts):
+        plt.plot(steps, lod_cont, label=f"{lods[il]}")
+    plt.xlabel('Training steps')
+    plt.ylabel('Contrast')
     plt.yscale('log')
+    plt.legend()
     plt.show()
 
 def blob_ROC_curves():
