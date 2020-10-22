@@ -20,10 +20,10 @@ from visualization import load_meta, get_metric_distributions, confusion_matrix,
 from pcd.config.config import config
 
 home = os.path.expanduser("~")
-sp.numframes = 100
-sp.sample_time = 0.05
+# sp.numframes = 100
+# sp.sample_time = 0.05
 
-def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True):
+def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True, verbose=False):
     """ Looks for reduced images file in the home folder and returns if it exists. If you're on the local machine
     and the file has not been transferred it will throw a FileNotFoundError """
     # if home == '/Users/dodkins':
@@ -51,32 +51,34 @@ def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True):
     star_raw = np.sum(star_tess, axis=(0,1))
     planet_raw = np.sum(planet_tess, axis=(0,1))
 
-    angle_list = -np.linspace(0, 2 * sp.numframes * sp.sample_time * tp.rot_rate, all_tess.shape[1])
+    angle_list = -np.linspace(0, sp.numframes * sp.sample_time * config['data']['rot_rate']/60, all_tess.shape[1])
+
 
     if use_spec:
         wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], all_tess.shape[0])
         scale_list = wsamples / (ap.wvl_range[1] - ap.wvl_range[0])
 
         all_pca = pca.pca(all_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
+                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum', verbose=verbose)
 
         star_pca = pca.pca(star_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
+                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum', verbose=verbose)
 
         planet_pca = pca.pca(planet_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum')
+                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum', verbose=verbose)
         # reduced_images = np.array([[all_raw, star_raw, planet_raw], [all_pca, star_pca, planet_pca]])
 
 
-        all_med = medsub_source.median_sub(all_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
-        star_med = medsub_source.median_sub(star_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
-        planet_med = medsub_source.median_sub(planet_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
+        # all_med = medsub_source.median_sub(all_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
+        # star_med = medsub_source.median_sub(star_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
+        # planet_med = medsub_source.median_sub(planet_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
 
     else:
-        all_med = medsub_source.median_sub(np.sum(all_tess, axis=0), angle_list=angle_list, collapse='sum')
-        star_med = medsub_source.median_sub(np.sum(star_tess, axis=0), angle_list=angle_list, collapse='sum')
-        planet_med = medsub_source.median_sub(np.sum(planet_tess, axis=0), angle_list=angle_list,
-                                              collapse='sum')
+        pass
+        # all_med = medsub_source.median_sub(np.sum(all_tess, axis=0), angle_list=angle_list, collapse='sum')
+        # star_med = medsub_source.median_sub(np.sum(star_tess, axis=0), angle_list=angle_list, collapse='sum')
+        # planet_med = medsub_source.median_sub(np.sum(planet_tess, axis=0), angle_list=angle_list,
+        #                                       collapse='sum')
 
     all_derot = np.sum(cube_derotate(np.sum(all_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
     star_derot = np.sum(cube_derotate(np.sum(star_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
@@ -280,7 +282,7 @@ def view_reduced():
 
     plt.show(block=True)
 
-def contrast_curves():
+def contrast_curve():
     thrus = np.zeros((4,5,3))  # 4 conts, 5 rad, 3 types
     r = range(73)
     stds = np.zeros((1,len(r),3))
@@ -310,7 +312,7 @@ def contrast_curves():
             true_star_tess, edges = np.histogramdd(true_star_photons, bins=bins)
 
             true_star_tess = np.transpose(true_star_tess, axes=(1, 0, 2, 3))
-            angle_list = -np.linspace(0, 2 * sp.numframes * sp.sample_time * tp.rot_rate, true_star_tess.shape[1])
+            angle_list = -np.linspace(0, sp.numframes * sp.sample_time * config['data']['rot_rate']/60, true_star_tess.shape[1])
             star_derot = np.sum(
                 cube_derotate(np.sum(true_star_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
 
@@ -327,11 +329,21 @@ def contrast_curves():
         with open(imlistsfile, 'wb') as f:
             np.save(f, np.array(imlists))
 
+    trios = []
     for ix in range(20):
         imlist = imlists[ix]
         star_derot, PCA, PCD, PCDPCA = imlist
         cont_ind = ix //5
         r_ind = ix % 5
+
+        trio = np.array([PCA, PCD, PCDPCA])
+        trio[trio<=0] = 0.1
+        trios.append(trio)
+
+        if ix % 5 == 4:
+            print(ix)
+            grid(trios, logZ=True, vlim=(1,60), show=False)
+            trios = []
 
         plot = False
         # if cont_ind >= 0:
@@ -353,6 +365,8 @@ def contrast_curves():
                             noise_per_annulus(PCDPCA, 1, fwhm)[0]
                             ])
             stds[0] = std.T
+
+    plt.show()
 
     # mean_thrus = np.mean(thrus[2:], axis=0)
     full_thru = noise_per_annulus(star_derot, 1, fwhm, mean_per_ann=True)[0]
@@ -384,9 +398,11 @@ def contrast_curves():
         # grid(imlist, logZ=True, vlim=(1,60), show=False)
     # plt.show(block=True)
 
+
 if __name__ == '__main__':
-    # get_reduced_images(ind=-2)
+    # get_reduced_images(ind=-8, plot=True)
     # plot_3D_pointclouds()
     # ROC_curve()
     # view_reduced()
-    contrast_curves()
+    contrast_curve()
+
