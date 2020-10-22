@@ -16,6 +16,7 @@ from medis.telescope import Telescope
 from medis.MKIDS import Camera
 from medis.utils import dprint
 from medis.plot_tools import grid
+from medis.distribution import planck, Distribution
 
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
@@ -269,7 +270,7 @@ class NnReform(Reform):
         num_input = len(self.chunked_photons)  # 16
 
         reorder = np.apply_along_axis(np.random.permutation, 1,
-                                      np.ones((num_input, self.num_point)) * np.arange(self.num_point)).astype(np.int)
+                                      np.ones((num_input, self.chunked_photons.shape[1])) * np.arange(self.chunked_photons.shape[1])).astype(np.int)
 
         self.data = np.array([self.chunked_photons[o, order] for o, order in enumerate(reorder)])
         if config['task'] == 'part_seg':
@@ -314,23 +315,34 @@ class NnReform(Reform):
 
     def adjust_companion(self, astro):
         # brightness change
-        ratio = astro[0] / 10 ** config['data']['contrasts'][0]
+        ratio = astro[0] / 10. ** config['data']['contrasts'][0]
         assert ratio <= 1
         planet_inds = np.where(self.chunked_pids[0,:,0])[0]
-        red_planet_inds = np.random.choice(planet_inds, int(len(planet_inds) * (1-ratio)))
-        self.chunked_pids = np.delete(self.chunked_pids, red_planet_inds, axis=1)
-        self.chunked_photons = np.delete(self.chunked_photons, red_planet_inds, axis=1)
+        # del_planet_inds = np.sort(np.random.choice(planet_inds, int(len(planet_inds) * (1-ratio))))
+        del_planet_inds = np.sort(random.sample(list(planet_inds), int(len(planet_inds) * (1-ratio))))
+        self.chunked_pids = np.delete(self.chunked_pids, del_planet_inds, axis=1)
+        self.chunked_photons = np.delete(self.chunked_photons, del_planet_inds, axis=1)
 
         # location changes
         planet_inds = np.where(self.chunked_pids[0, :, 0])[0]
         planet_photons = self.chunked_photons[0,planet_inds]
-        angles = -np.deg2rad((planet_photons[:,0]+1) *0.5 * sp.numframes * sp.sample_time * config['data']['rot_rate']/60)
+        angles = np.deg2rad((planet_photons[:,0]+1) * 0.5 * sp.numframes * sp.sample_time * config['data']['rot_rate']/60)
         yc, xc = np.mean(planet_photons[:,2]), np.mean(planet_photons[:,3])
         rad_offset = astro[1] * 2 * 10 / 150
         planet_photons[:,3] += -xc + rad_offset[1]
         planet_photons[:,2] += -yc + rad_offset[0]
-        planet_photons[:,3] = planet_photons[:,3] * np.cos(angles) - planet_photons[:,2] * np.sin(angles) + xc
-        planet_photons[:,2] = planet_photons[:,3] * np.sin(angles) + planet_photons[:,2] * np.cos(angles) + yc
+        x_rot = planet_photons[:,3] * np.cos(angles) - planet_photons[:,2] * np.sin(angles)
+        y_rot = planet_photons[:,3] * np.sin(angles) + planet_photons[:,2] * np.cos(angles)
+        planet_photons[:, 3], planet_photons[:,2] = x_rot, y_rot
+
+        # spectrum changes
+        wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], ap.n_wvl_final)
+        spectrum = planck(astro[2][1], wsamples)
+        spectrum /= np.sum(spectrum)
+        dist = Distribution(spectrum)
+        phot_spec = dist(len(planet_photons))
+        planet_photons[:, 1] = phot_spec*2/np.max(phot_spec) - 1
+
         self.chunked_photons[0, planet_inds] = planet_photons
 
     def display_chunk_cloud(self, downsamp=10):
@@ -569,18 +581,18 @@ def load_h5(h5_filename):
     smpw = f['smpw'][:]
     return (data, label, smpw)
 
-def load_dataset(in_files, shuffle=False):
-    for in_file in in_files:
-        assert os.path.isfile(in_file), f'[error] {in_file} dataset path not found'
+def load_dataset(in_file, shuffle=False):
+    # for in_file in in_files:
+    assert os.path.isfile(in_file), f'[error] {in_file} dataset path not found'
 
-    in_data = np.empty((0, config['num_point'], config['dimensions']))
-    in_label = np.empty((0, config['num_point']))
+    # in_data = np.empty((0, config['num_point'], config['dimensions']))
+    # in_label = np.empty((0, config['num_point']))
 
-    for in_file in in_files:
-        print(f'loading {in_file}')
-        file_in_data, file_in_label, class_weights = load_h5(in_file)
-        in_data = np.concatenate((in_data, file_in_data), axis=0)
-        in_label = np.concatenate((in_label, file_in_label), axis=0)
+    # for in_file in in_files:
+    print(f'loading {in_file}')
+    in_data, in_label, class_weights = load_h5(in_file)
+    # in_data = np.concatenate((in_data, file_in_data), axis=0)
+    # in_label = np.concatenate((in_label, file_in_label), axis=0)
 
     if shuffle:
         raise NotImplementedError
@@ -592,8 +604,8 @@ def make_input(config):
 
     # get info on each photoncloud
     outfiles = np.append(config['trainfiles'], config['testfiles'])
-    debugs = [True] * config['data']['num_indata']
-    debugs[0] = False
+    debugs = [False] * config['data']['num_indata']
+    # debugs[0] = False
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)
@@ -606,8 +618,9 @@ def make_input(config):
         if os.path.exists(outfile):
             print('Already exists')
         else:
+            astro = mp(i)
             if not aug_ind:  # any number > 0
-                obs = MedisObs(f'{i}', mp(i), debug=False)
+                obs = MedisObs(f'{i}', astro, debug=False)
                 photons = obs.photons
 
             if config['model'] == 'minkowski':
@@ -617,7 +630,7 @@ def make_input(config):
 
             r = reformer(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
             r.process_photons()
-            r.adjust_companion(mp(i))
+            r.adjust_companion(astro)
             r.save_class()
 
     workingdir_config = config['working_dir'] + 'config.yml'
