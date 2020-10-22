@@ -6,18 +6,25 @@ Photon Cloud Discrimination (PCD) is an algorithm that given a set of photon coo
 
 ##### Modules
 
-conda env create -f medis_env.yml  #todo change tensorflow==1.13.1 and see if still works rather than postfacto pip upgrade
+conda env create -f environment.yml
 
 conda activate medis-tf
 
-cd proper_v3.2.1_python_3.x
+export CUDA_HOME="/usr/local/cuda-10.2"
+
+conda install numpy mkl-include pytorch cudatoolkit=10.2 -c pytorch
+
+git clone https://github.com/NVIDIA/MinkowskiEngine.git
+
+cd MinkowskiEngine
 
 python setup.py install
 
-##### Tensorflow ops
+cd ../proper_v3.2.1_python_3.x_12feb20
 
-Check the paths are correct in the shell scripts
+python setup.py install
+
+
+##### Debug
 
 To see images if no DISPLAY variable set after ssh -X, try gedit command and close the window, then echo $DISPLAY
-
-
