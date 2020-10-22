@@ -710,7 +710,7 @@ def trans_p2c(photons):
 
     return photons
 
-def pt_step(input_data, input_label, pred_val, loss, train=True):
+def pt_step(input_data, input_label, pred_val, loss, train=True, verbose=True):
     if not config['train']['roc_probabilities']:
         pred_val = np.argmax(pred_val, axis=-1)
 
@@ -718,28 +718,20 @@ def pt_step(input_data, input_label, pred_val, loss, train=True):
         field_tup = (input_label, pred_val, input_data, loss, train)
         pickle.dump(field_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    if config['train']['roc_probabilities']:
-        pred_val = np.argmax(pred_val, axis=-1)
+    if verbose:
+        if config['train']['roc_probabilities']:
+            pred_val = np.argmax(pred_val, axis=-1)
 
-    pos = input_label == 1
-    neg = input_label == 0
+        pos = input_label == 1
+        neg = input_label == 0
 
-    true_pos = int(np.sum(np.logical_and(pos, np.round(pred_val) == 1)))
-    false_pos = int(np.sum(np.logical_and(neg, np.round(pred_val) == 1)))
-    true_neg = int(np.sum(np.logical_and(neg, np.round(pred_val) == 0)))
-    false_neg = int(np.sum(np.logical_and(pos, np.round(pred_val) == 0)))
-    conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
+        true_pos = int(np.sum(np.logical_and(pos, np.round(pred_val) == 1)))
+        false_pos = int(np.sum(np.logical_and(neg, np.round(pred_val) == 1)))
+        true_neg = int(np.sum(np.logical_and(neg, np.round(pred_val) == 0)))
+        false_neg = int(np.sum(np.logical_and(pos, np.round(pred_val) == 0)))
+        conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
+        print(conf)
 
-    # print('true_pos: %f' % (true_pos))
-    # print('true_neg: %f' % (true_neg))
-    # print('false_pos: %f' % (false_pos))
-    # print('false_neg: %f' % (false_neg))
-    print(conf)
-    # try:
-    #     print('Precision: %f' % (true_pos / (true_pos + false_pos)))
-    #     print('Recall: %f' % (true_pos / (true_pos + false_neg)))
-    # except ZeroDivisionError:
-    #     pass
 
 def tf_step(input_data, input_label, pred_val, train=True):
     """ Get values of tensors to save them and read by metric_tesseracts """
@@ -783,6 +775,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
-    # onetime_metric_streams(end = -1)
-    metric_tesseracts(start = -6, end = -3, jump=1)
+    onetime_metric_streams(end = -1)
+    metric_tesseracts(start = 0, end = -1, jump=10)
 

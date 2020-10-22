@@ -30,6 +30,7 @@ def predict():
     net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
     device = torch.device('cuda')
     net = net.to(device)
+    print(f"loading NN from {config['savepath']}")
     net.load_state_dict(torch.load(config['savepath']))
     net.eval()
 
@@ -38,7 +39,7 @@ def predict():
 
     # for evalfile in config['mec']['glados_inputfiles']:
     for evalfile in evalfiles:
-        coords, labels = load_dataset([evalfile])
+        coords, labels = load_dataset(evalfile)
         input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
         with torch.no_grad():
@@ -52,4 +53,4 @@ def predict():
 
 if __name__ == '__main__':
     predict()
-    # metric_tesseracts(start = 0, end = -1, jump=1, type='eval')
+    metric_tesseracts(start = 0, end = -1, jump=1, type='eval')

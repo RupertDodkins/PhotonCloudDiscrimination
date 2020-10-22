@@ -50,7 +50,7 @@ def reform_input(coords, labels, device):
 
     return input_pt, labels_pt, coords, feats, labels
 
-def train():
+def train(verbose=True):
 
     # net = UNet(in_nchannel=4, out_nchannel=2, D=4)  # D is 4 - 1
     net = MinkUNet14A(in_channels=4, out_channels=2, D=4)  # D is 4 - 1
@@ -61,7 +61,7 @@ def train():
     criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1], device=device))
 
     if os.path.exists(config['savepath']):
-        print('Loading neural net')
+        print(f"Loading neural net {config['savepath']}")
         net.load_state_dict(torch.load(config['savepath']))
 
     optimizer = SGD(net.parameters(), lr=1e-4)
@@ -72,7 +72,7 @@ def train():
             optimizer.zero_grad()
 
             # Get new data
-            coords, labels = load_dataset(config['trainfiles'][i:i+1])
+            coords, labels = load_dataset(config['trainfiles'][i])
             input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
             # Forward
@@ -82,22 +82,22 @@ def train():
             loss = criterion(output.F, labels_pt)
 
             # if i % 5 == 0:
-            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=True)
+            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=True, verbose=verbose)
 
             # Gradient
             loss.backward()
             optimizer.step()
 
-        test(net, device, criterion)
+        test(net, device, criterion, verbose)
 
         # Saving and loading a network
         torch.save(net.state_dict(), config['savepath'])
 
-def test(net, device, criterion):
+def test(net, device, criterion, verbose):
     net.eval()
     with torch.no_grad():
         for i in range(int(config['data']['num_indata'] * config['data']['test_frac'])):
-            coords, labels = load_dataset(config['testfiles'][i:i + 1])
+            coords, labels = load_dataset(config['testfiles'][i])
             input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
             output = net(input_pt)
@@ -105,7 +105,7 @@ def test(net, device, criterion):
             loss = criterion(output.F, labels_pt)
 
             # if i % 10 == 0:
-            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=False)
+            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=False, verbose=True)
 
 if __name__ == '__main__':
     train()
