@@ -11,6 +11,7 @@ from vip_hci.medsub import medsub_source
 import pandas as pd
 pd.options.display.max_columns = None
 import scipy
+import pickle
 
 from medis.telescope import Telescope
 from medis.MKIDS import Camera
@@ -29,57 +30,66 @@ class MedisObs():
     def __init__(self, name, astro, debug=False):
         """ astro tuple containing contrast, lod and spectra tuple"""
         iop.update_testname(str(name))
-        self.medis_cache = iop.testdir
-
-        ap.contrast = [astro[0]]
-        ap.companion_xy = [astro[1]]
-        # ap.spectra = [[spec] for spec in astro[2]]
-        ap.spectra = astro[2]
-
-        if ap.contrast == [0.0]:
-            ap.contrast = []
-            ap.companion = False
+        iop.photonlist = iop.photonlist.split('.')[0]+'.pkl'
+        print(iop.photonlist, 'photonlist')
+        if os.path.exists(iop.photonlist):
+            with open(iop.photonlist, 'rb') as handle:
+                self.photons = pickle.load(handle)
         else:
-            ap.companion = True
+            self.medis_cache = iop.testdir
 
-        self.numobj = len(ap.contrast)+1
+            ap.contrast = [astro[0]]
+            ap.companion_xy = [astro[1]]
+            # ap.spectra = [[spec] for spec in astro[2]]
+            ap.spectra = astro[2]
 
-        # instantiate but don't generate data yet
-        tel = Telescope(usesave=sp.save_to_disk)
-        cam = Camera(usesave=False, product='photons')
-
-        self.photons = []
-        for o in range(self.numobj):
-            if tel.num_chunks == 1:
-                fields = tel()['fields']
-                object_fields = fields[:,:,:,o][:,:,:,np.newaxis]
-                photons = cam(fields=object_fields)['photons']
+            if ap.contrast == [0.0]:
+                ap.contrast = []
+                ap.companion = False
             else:
-                photons = np.empty((4,0))
-                tel.chunk_span = np.arange(0, sp.numframes+1, sp.checkpointing)
-                for ichunk in range(int(np.ceil(tel.num_chunks))):
+                ap.companion = True
+
+            self.numobj = len(ap.contrast)+1
+
+            # instantiate but don't generate data yet
+            tel = Telescope(usesave=sp.save_to_disk)
+            cam = Camera(usesave=False, product='photons')
+
+            self.photons = []
+            for o in range(self.numobj):
+                if tel.num_chunks == 1:
                     fields = tel()['fields']
-                    object_fields = fields[:, :, :, o][:, :, :, np.newaxis]
-                    photons = np.hstack((photons, cam(fields=object_fields, abs_step=tel.chunk_span[ichunk])['photons']))
+                    object_fields = fields[:,:,:,o][:,:,:,np.newaxis]
+                    photons = cam(fields=object_fields)['photons']
+                else:
+                    photons = np.empty((4,0))
+                    tel.chunk_span = np.arange(0, sp.numframes+1, sp.checkpointing)
+                    for ichunk in range(int(np.ceil(tel.num_chunks))):
+                        fields = tel()['fields']
+                        object_fields = fields[:, :, :, o][:, :, :, np.newaxis]
+                        photons = np.hstack((photons, cam(fields=object_fields, abs_step=tel.chunk_span[ichunk])['photons']))
 
-            tel.chunk_ind = 0
-            tel.fields_exists = True  # this is defined during Telescope.__init__ so redefine here once fields is made
+                tel.chunk_ind = 0
+                tel.fields_exists = True  # this is defined during Telescope.__init__ so redefine here once fields is made
 
-            if config['data']['time_diff']:
-                stem = cam.arange_into_stem(photons.T, (cam.array_size[1], cam.array_size[0]))
-                stem = list(map(list, zip(*stem)))
-                stem = cam.calc_arrival_diff(stem)
-                photons = cam.ungroup(stem)
-                # photons = photons[[0, 1, 3, 2]]
+                if config['data']['time_diff']:
+                    stem = cam.arange_into_stem(photons.T, (cam.array_size[1], cam.array_size[0]))
+                    stem = list(map(list, zip(*stem)))
+                    stem = cam.calc_arrival_diff(stem)
+                    photons = cam.ungroup(stem)
+                    # photons = photons[[0, 1, 3, 2]]
 
-            # if config['data']['trans_polar']:
-            #     photons[2] -= cam.array_size[1]/2
-            #     photons[3] -= cam.array_size[0]/2
-            #     r = np.sqrt(photons[2]**2 + photons[3]**2)
-            #     t =  np.arctan2(photons[3],photons[2])
-            #     photons[-2:] = np.array([r,t])
+                # if config['data']['trans_polar']:
+                #     photons[2] -= cam.array_size[1]/2
+                #     photons[3] -= cam.array_size[0]/2
+                #     r = np.sqrt(photons[2]**2 + photons[3]**2)
+                #     t =  np.arctan2(photons[3],photons[2])
+                #     photons[-2:] = np.array([r,t])
 
-            self.photons.append(photons.T)
+                self.photons.append(photons.T)
+
+            with open(iop.photonlist, 'wb') as handle:
+                pickle.dump(self.photons, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         if debug:
             self.display_2d_hists()
@@ -176,14 +186,13 @@ class MedisObs():
         plt.show()
 
 class Reform():
-    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None, dithered=False):
+    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, dithered=False):
         self.photons = photons #[self.normalise_photons(photons[o]) for o in range(config['classes'])]
         self.outfile = outfile
         self.prefix = outfile.split('.')[0]
         self.train_type = train_type
         self.aug_ind = aug_ind
         self.debug = debug
-        self.rm_input = rm_input
         self.dithered = dithered
 
         self.num_point = config['num_point']
@@ -231,8 +240,8 @@ class Reform():
 
 class NnReform(Reform):
     """ Creates the input data in the NN input format """
-    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None, dithered=False):
-        super().__init__(photons, outfile, train_type, aug_ind, debug, rm_input, dithered)
+    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, dithered=False):
+        super().__init__(photons, outfile, train_type, aug_ind, debug, dithered)
 
         self.chunked_photons = []
         self.chunked_pids = []
@@ -305,13 +314,6 @@ class NnReform(Reform):
                 hf.create_dataset('pid', data=self.pids)
             if config['pointnet_version'] == 2:
                 hf.create_dataset('smpw', data=self.smpw)
-
-        if self.rm_input:
-            try:
-                # shutil.rmtree(self.rm_input)
-                dprint(self.rm_input)
-            except OSError as e:
-                print("Error: %s - %s." % (e.filename, e.strerror))
 
     def adjust_companion(self, astro):
         # brightness change
@@ -396,8 +398,8 @@ class NnReform(Reform):
 
 
 class DtReform(Reform):
-    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, rm_input=None, dithered=False):
-        super().__init__(photons, outfile, train_type, aug_ind, debug, rm_input, dithered)
+    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, dithered=False):
+        super().__init__(photons, outfile, train_type, aug_ind, debug, dithered)
 
         self.aggregate_photons()
         self.sort_photons()
@@ -418,12 +420,12 @@ class DtReform(Reform):
         self.df = self.df.sort_values(['res_id', 'time'])
         I, _ = np.histogram(self.df['res_id'], self.id_bins)
 
-        # plt.imshow(I.reshape(cam.array_size))
-        self.df['I'] = I[self.df['res_id'].values] / max(I)
+        plt.imshow(I.reshape(cam.array_size), norm=LogNorm())
+        # self.df['I'] = I[self.df['res_id'].values] / max(I)
 
         dt = self.df['time'].values - np.roll(self.df['time'].values,1,0)
         trans = np.roll(self.df['res_id'].values,1,0) - self.df['res_id'].values != 0
-        dt[trans] = np.nan
+        dt[trans] = dt[np.roll(trans,1,0)]  #np.nan
 
         # r = 0
         # dt = np.zeros((len(self.df['I'])))
@@ -438,6 +440,20 @@ class DtReform(Reform):
         #         r += 1
 
         self.df['dtime'] = dt
+
+        dts = self.df.loc[self.df['res_id'] == I.argmax()]['dtime'].values
+        N = int(1e5/50)
+        srm = np.convolve(dts, np.ones((N,)) / N, mode='valid')
+        offset = int((len(dts)-len(srm))/2)
+        print(srm.shape, srm.min(), len(srm), len(dts), offset, I.argmax())
+        fig = plt.figure()
+        ax1 = fig.add_subplot(121)
+        ax2 = fig.add_subplot(122)
+        ax1.plot(dts)
+        ax1.plot(range(offset, len(dts)-offset-1), srm)
+        ax2.hist(dts[~np.isnan(dts)], bins=100)
+        plt.show()
+
         self.df = self.df.sort_values('time')
 
         # if config['data']['trans_polar']:
@@ -628,7 +644,7 @@ def make_input(config):
             elif config['model'] == 'lightgbm':
                 reformer = DtReform
 
-            r = reformer(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], rm_input=obs.medis_cache)
+            r = reformer(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
             r.process_photons()
             r.adjust_companion(astro)
             r.save_class()
