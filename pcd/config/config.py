@@ -44,35 +44,42 @@ with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.yml"
     except yaml.YAMLError as exc:
         config = exc
 
-# deduce astro params
-for astro in ['angles', 'lods', 'contrasts', 'planet_spectra']:
-    if isinstance(config['data'][astro], list):
-        config['data'][astro] = config['data'][astro][:config['data']['num_indata']]
+# make these into functions so they can be called elsewhere
+def convert_astro(config):
+    for astro in ['angles', 'lods', 'contrasts', 'planet_spectra']:
+        if isinstance(config['data'][astro], list):
+            config['data'][astro] = config['data'][astro][:config['data']['num_indata']]
 
-    elif isinstance(config['data'][astro], int):
-        config['data'][astro] = [config['data'][astro]] * config['data']['num_indata']
+        elif isinstance(config['data'][astro], int):
+            config['data'][astro] = [config['data'][astro]] * config['data']['num_indata']
 
-    elif isinstance(config['data'][astro], str):  # todo replace with regex to recognise tuples - https://stackoverflow.com/questions/39553008/how-to-read-a-python-tuple-using-pyyaml
-        config['data'][astro]= config['data'][astro].replace('(', '')
-        config['data'][astro]= config['data'][astro].replace(')', '')
-        bounds = np.float_(config['data'][astro].split(','))
-        config['data'][astro] = np.random.uniform(bounds[0], bounds[1], config['data']['num_indata'])
+        elif isinstance(config['data'][astro], str):  # todo replace with regex to recognise tuples - https://stackoverflow.com/questions/39553008/how-to-read-a-python-tuple-using-pyyaml
+            config['data'][astro]= config['data'][astro].replace('(', '')
+            config['data'][astro]= config['data'][astro].replace(')', '')
+            bounds = np.float_(config['data'][astro].split(','))
+            config['data'][astro] = np.random.uniform(bounds[0], bounds[1], config['data']['num_indata'])
 
-config['data']['contrasts'] = np.sort(config['data']['contrasts'])[::-1]  # since first data must have most photons
+    config['data']['contrasts'] = np.sort(config['data']['contrasts'])[::-1]  # since first data must have most photons
+    return config
 
-num_test = config['data']['num_indata'] * config['data']['test_frac']
-num_test = int(num_test)
-num_train = config['data']['num_indata'] - num_test
-num_eval = config['data']['num_indata']
+def convert_inputfiles(config):
+    num_test = config['data']['num_indata'] * config['data']['test_frac']
+    num_test = int(num_test)
+    num_train = config['data']['num_indata'] - num_test
+    num_eval = config['data']['num_indata']
 
-config['glados_inputfiles'] = config['mec']['glados_inputfiles']
+    config['glados_inputfiles'] = config['mec']['glados_inputfiles']
 
-for file, num in zip(['testfiles', 'trainfiles', 'glados_inputfiles'], [num_test, num_train, num_eval]):
+    for file, num in zip(['testfiles', 'trainfiles', 'glados_inputfiles'], [num_test, num_train, num_eval]):
 
-    suffix, extension = config[file].split('{id}')
-    config[file] = [suffix + str(l) + extension for l in range(num)]
+        suffix, extension = config[file].split('{id}')
+        config[file] = [suffix + str(l) + extension for l in range(num)]
 
-config['mec']['glados_inputfiles'] = config.pop('glados_inputfiles')
+    config['mec']['glados_inputfiles'] = config.pop('glados_inputfiles')
+    return config
+
+config = convert_astro(config)
+config = convert_inputfiles(config)
 
 # load run.yml
 with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "run.yml"), 'r') as stream:
