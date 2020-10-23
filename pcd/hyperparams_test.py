@@ -5,6 +5,7 @@ import shutil
 
 from vip_hci.metrics import contrcurve, aperture_flux, noise_per_annulus
 
+from pcd.input import make_input
 from pcd.train import train
 from pcd.predict import predict
 from pcd.article_plots import get_reduced_images
@@ -12,7 +13,7 @@ from pcd.config.config import config
 
 def step_performance():
     """
-    config for making the input data is in
+    Must first create input files with input.py. config for making the input data is in PCD_data/201021
 
     :return:
     """
@@ -81,5 +82,7 @@ def blob_ROC_curves():
     star_derot = reduced_images[0, 0]
 
 if __name__ == '__main__':
+    if not os.path.exists(config['working_dir']):
+        make_input(config)
     step_performance()
     # input_performance()
