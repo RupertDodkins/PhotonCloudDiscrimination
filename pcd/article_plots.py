@@ -132,10 +132,7 @@ def plot_3D_pointclouds():
     cur_data[:,2] = (cur_data[:,2] + 200) * 150/400
     cur_data[:,3] = (cur_data[:,3] + 200) * 150/400
 
-    metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
-
-    true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
-                                               int(np.sum(metrics[2])), int(np.sum(metrics[3])),
+    true_pos, false_neg, false_pos, true_neg = get_metric_distributions(cur_seg, pred_seg_res, sum=True)
 
     print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
     all_photons = np.concatenate(
@@ -207,9 +204,7 @@ def get_photons(amount=1):
     cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-amount]
     del alldata
 
-    metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
-    true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
-                                               int(np.sum(metrics[2])), int(np.sum(metrics[3])),
+    true_pos, false_neg, false_pos, true_neg = get_metric_distributions(cur_seg, pred_seg_res, sum=True)
     print(trainbool)
     print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
 
@@ -300,7 +295,7 @@ def contrast_curve():
         for ix, rev_ind in enumerate(range(1, 21, 1)): #1,21
 
             cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-rev_ind]
-            metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
+            metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
 
             true_star_photons = np.concatenate((cur_data[metrics[1]], cur_data[metrics[3]]), axis=0)
 

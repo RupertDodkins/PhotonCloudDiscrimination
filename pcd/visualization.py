@@ -125,19 +125,16 @@ def load_meta(kind='pt_outputs', amount=-1):
 
     return alldata
 
-def get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True):
+def get_metric_distributions(cur_seg, pred_seg_res, sum=True):
     true_neg = np.logical_and(cur_seg == 0, np.round(pred_seg_res) == 0)  # round just in case the pred_val is in mean mode
     true_pos = np.logical_and(cur_seg == 1, np.round(pred_seg_res) == 1)
     false_neg = np.logical_and(cur_seg == 1, np.round(pred_seg_res) == 0)
     false_pos = np.logical_and(cur_seg == 0, np.round(pred_seg_res) == 1)
-    if include_true_neg:
-        metrics = [true_pos, false_neg, false_pos, true_neg]
-        # scores = np.array([np.sum(true_pos), np.sum(false_pos)]) / np.sum(cur_seg == 1)
-        # print(scores)
-        # scores = np.array([np.sum(true_neg), np.sum(false_neg)]) / np.sum(cur_seg == 0)
-        # print(scores)
-    else:
-        metrics = [true_pos, false_neg, false_pos]
+
+    metrics = [true_pos, false_neg, false_pos, true_neg]
+
+    if sum:
+        metrics = [int(np.sum(metric)) for metric in metrics]
 
     return metrics
 
@@ -154,7 +151,7 @@ def three_d_scatter(cur_data, metrics):
 def cloud(epoch=-1):
     alldata = load_meta()
     cur_seg, pred_seg_res, cur_data, _ = alldata[epoch]
-    metrics = get_metric_distributions(cur_seg, pred_seg_res)
+    metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
     three_d_scatter(cur_data, metrics)
 
 
@@ -205,11 +202,8 @@ def continuous_metric_streams():
             else:
                 epochs = np.arange(0, epoch, 1)
 
-            # metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
-            #
-            # true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics_vol[0])), int(np.sum(metrics_vol[1])), \
-            #                                            int(np.sum(metrics_vol[2])), int(np.sum(metrics_vol[3])),
-            #
+            # metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, sum=True)
+
             # tot_neg, tot_pos = true_neg + false_neg, true_pos + false_pos
             # dprint(tot_neg, tot_pos, train)
             #
@@ -266,7 +260,7 @@ def initialize_metrics(metric_types):
     return metrics
 
 def update_metrics(cur_seg, pred_seg_res, train, metrics, loss=-1):
-    metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
+    metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
 
     # np.float64 so ZeroDivideErrors -> np.nan
     true_pos, false_neg, false_pos, true_neg = np.float64(np.sum(metrics_vol[0])), np.float64(np.sum(metrics_vol[1])), \
@@ -493,9 +487,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     for step in range(start, end+1, jump):
         cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[step]
 
-        metrics = get_metric_distributions(cur_seg, pred_seg_res, include_true_neg=True)
-        true_pos, false_neg, false_pos, true_neg = int(np.sum(metrics[0])), int(np.sum(metrics[1])), \
-                                                   int(np.sum(metrics[2])), int(np.sum(metrics[3])),
+        true_pos, false_neg, false_pos, true_neg = get_metric_distributions(cur_seg, pred_seg_res, sum=True)
 
         print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
         print('true_pos: %f' % (true_pos))
@@ -573,7 +565,7 @@ def investigate_layer(start=-10, end=-1, jump=1):
                 x, y = batch_data[ic, :, :2][(np.ones(2) * pred_val[ic, :, None]).astype(bool)].reshape(-1,2).T
                 images[1][ic], _, _ = np.histogram2d(x,y, bins=bins)
 
-                metrics = get_metric_distributions(batch_labels[ic], pred_val[ic], include_true_neg=True)
+                metrics = get_metric_distributions(batch_labels[ic], pred_val[ic], sum=False)
 
                 if layer.shape[-1] != 4:
                     for ii, im in enumerate(range(2,6)):
