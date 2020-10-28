@@ -22,7 +22,7 @@ from medis.distribution import planck, Distribution
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
 import utils
-from visualization import trans_p2c
+from visualization import confusion_matrix, get_metric_distributions
 
 
 class MedisObs():
@@ -206,11 +206,7 @@ class Reform():
         self.all_pids = np.empty((0, 1))  # associated photon labels
 
         for o in range(self.num_classes):
-            # dprint((self.all_photons.shape, self.photons[o][:, [0, 2, 3]].shape))
-            if self.dimensions == 3:
-                self.all_photons = np.concatenate((self.all_photons, self.photons[o][:, [0, 2, 3]]), axis=0)
-            else:
-                self.all_photons = np.concatenate((self.all_photons, self.photons[o]), axis=0)
+            self.all_photons = np.concatenate((self.all_photons, self.photons[o]), axis=0)
             self.all_pids = np.concatenate((self.all_pids, np.ones_like((self.photons[o][:, [0]])) * int(o>0)), axis=0)
 
     def sort_photons(self):
@@ -237,7 +233,6 @@ class Reform():
             self.all_photons /= (2*np.std(self.all_photons, axis=0))
         self.normalised = True
 
-
 class NnReform(Reform):
     """ Creates the input data in the NN input format """
     def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, dithered=False):
@@ -260,19 +255,21 @@ class NnReform(Reform):
     def chunk_photons(self):
         # remove residual photons that won't fit into a input cube for the network
         total_photons = sum([len(self.photons[i]) for i in range(self.num_classes)])
-        cut = int(total_photons % self.num_point)
-        dprint(total_photons, cut)
-        rand_cut = random.sample(range(total_photons), cut)
-        red_photons = np.delete(self.all_photons, rand_cut, axis=0)
-        red_pids = np.delete(self.all_pids, rand_cut, axis=0)
+        # cut = int(total_photons % self.num_point)
+        # dprint(total_photons, cut)
+        # rand_cut = random.sample(range(total_photons), cut)
+        # red_photons = np.delete(self.all_photons, rand_cut, axis=0)
+        # red_pids = np.delete(self.all_pids, rand_cut, axis=0)
 
-        if config['model'] != 'minkowski':
-            # raster the list so that every self.num_point start a new input cube
-            self.chunked_photons = red_photons.reshape(-1, self.num_point, self.dimensions, order='F')  # selects them throughout the obss
-            self.chunked_pids = red_pids.reshape(-1, self.num_point, 1, order='F')
+        if total_photons > self.num_point:
+            rand_keep = random.sample(range(total_photons), self.num_point)
         else:
-            self.chunked_photons = red_photons.reshape(1, self.num_point, self.dimensions, order='F')  # selects them throughout the obss
-            self.chunked_pids = red_pids.reshape(1, self.num_point, 1, order='F')
+            rand_keep = np.arange(total_photons)
+        self.chunked_photons = self.all_photons[rand_keep]
+        self.chunked_pids = self.all_pids[rand_keep]
+
+        self.chunked_photons = self.chunked_photons.reshape(1, total_photons, self.dimensions, order='F')  # selects them throughout the obss
+        self.chunked_pids = self.chunked_pids.reshape(1, total_photons, 1, order='F')
 
     def save_class(self):
 
@@ -396,7 +393,6 @@ class NnReform(Reform):
 
         plt.show(block=True)
 
-
 class DtReform(Reform):
     def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, dithered=False):
         super().__init__(photons, outfile, train_type, aug_ind, debug, dithered)
@@ -409,6 +405,7 @@ class DtReform(Reform):
                                 'x':self.all_photons[:,2],
                                 'y':self.all_photons[:,3]})
 
+        self.df['exo'] = self.all_pids[:,0]
         cam = Camera(usesave=False, product='photons')
 
         self.id_bins = np.arange(mp.array_size[0] * mp.array_size[1])
@@ -416,7 +413,6 @@ class DtReform(Reform):
         self.id_bins = np.concatenate((self.id_bins, [self.id_bins[-1] + 1]), axis=0) - 0.5
 
         self.df['res_id'] = beammap[self.df['x'].values.astype(int), self.df['y'].values.astype(int)]
-        # inds = np.digitize(res_id, self.id_bins)
         self.df = self.df.sort_values(['res_id', 'time'])
         I, _ = np.histogram(self.df['res_id'], self.id_bins)
 
@@ -427,33 +423,109 @@ class DtReform(Reform):
         trans = np.roll(self.df['res_id'].values,1,0) - self.df['res_id'].values != 0
         dt[trans] = dt[np.roll(trans,1,0)]  #np.nan
 
-        # r = 0
-        # dt = np.zeros((len(self.df['I'])))
-        # for id, n in enumerate(I[:20]):
-        #     print(id, n)
-        #     for p in range(n):
-        #         if p == n-1:
-        #             dt[r] = np.nan
-        #         else:
-        #             dt[r] = res_sorted['time'].iloc[r+1]- res_sorted['time'].iloc[r]
-        #
-        #         r += 1
-
         self.df['dtime'] = dt
 
-        dts = self.df.loc[self.df['res_id'] == I.argmax()]['dtime'].values
-        N = int(1e5/50)
-        srm = np.convolve(dts, np.ones((N,)) / N, mode='valid')
-        offset = int((len(dts)-len(srm))/2)
-        print(srm.shape, srm.min(), len(srm), len(dts), offset, I.argmax())
-        fig = plt.figure()
-        ax1 = fig.add_subplot(121)
-        ax2 = fig.add_subplot(122)
-        ax1.plot(dts)
-        ax1.plot(range(offset, len(dts)-offset-1), srm)
-        ax2.hist(dts[~np.isnan(dts)], bins=100)
-        plt.show()
+    def binfree_ADI(self, dists=1, N=50, fwhm=5, plot_dict={}):
 
+        def find_coords(rad, sep):
+            npoints = (np.deg2rad(360) * rad) / sep  # (2*np.pi*rad)/sep
+            ang_step = 360 / npoints  # 360/npoints
+            x = []
+            y = []
+            for i in range(int(npoints)):
+                newx = rad * np.cos(np.deg2rad(ang_step * i))
+                newy = rad * np.sin(np.deg2rad(ang_step * i))
+                x.append(newx)
+                y.append(newy)
+            return np.array([np.array(y), np.array(x)])
+
+        self.df['bfadi_exo'] = np.zeros(len(self.df))
+
+        # rads = [np.sqrt((38-75)**2 + (54-75)**2)]
+        rads = np.arange(fwhm, 12 * fwhm, dists)
+        for rad in rads:
+            centered_coords = find_coords(rad, dists)
+            annuli_coords = np.array([centered_coords[i] + 75 for i in range(2)]).astype(int)
+
+            all_times = np.empty(0)
+            all_dts = np.empty(0)
+            all_ids = np.empty(0)
+            for ic, c in enumerate(annuli_coords.T):
+                df = self.df[(self.df['x'] == c[0]) & (self.df['y'] == c[1])]
+                dts = df['dtime'].values
+                cc = centered_coords.T[ic]
+                theta = np.rad2deg(np.arctan2(cc[1], cc[0]))
+                offset = theta / tp.rot_rate
+                all_times = np.append(all_times, df['time'].values + offset)
+                all_dts = np.append(all_dts, dts)
+                all_ids = np.append(all_ids, df.index.values)
+
+            sort_ind = np.argsort(all_times)
+            all_times = all_times[sort_ind]
+            all_dts = all_dts[sort_ind]
+            all_ids = all_ids[sort_ind]
+
+            sma = np.convolve(all_dts, np.ones((N,)) / N, mode='same')
+            bfadi_exo = sma < np.median(all_dts)
+
+            self.df.loc[all_ids, 'bfadi_exo'] = bfadi_exo
+
+            if plot_dict['Annulus stream']:
+                plt.figure()
+                plt.title(f'{rad} annulus combined time stream')
+                plt.plot(all_times, all_dts)
+                plt.plot(all_times, sma)
+                plt.axhline(np.median(all_dts))
+                plt.plot(all_times, bfadi_exo)
+                plt.tight_layout()
+
+                # bfadi_exo = bfadi_exo[orig_order]
+                # all_times = all_times[orig_order]
+                # all_dts = all_dts[orig_order]
+
+                # plt.figure()
+                # plt.plot(all_times, all_dts)
+                # plt.plot(all_times, bfadi_exo)
+                # plt.show()
+
+                # plt.figure()
+                # plt.plot(self.df.loc[all_ids]['x'].values, self.df.loc[all_ids]['y'].values)
+                # print(self.df.loc[self.df['bfadi_exo'] == 1])
+                # plt.plot(self.df.loc[self.df['bfadi_exo'] == 1]['x'], self.df.loc[self.df['bfadi_exo'] == 1]['y'])
+
+            if plot_dict['Each pix stream']:
+                fig = plt.figure()
+                for ic, c in enumerate(annuli_coords.T[:25]):
+                    df = self.df[(self.df['x'] == c[0]) & (self.df['y'] == c[1])]
+                    dts = df['dtime'].values
+                    bfadi_exo = df['bfadi_exo'].values
+                    cc = centered_coords.T[ic]
+                    theta = np.rad2deg(np.arctan2(cc[1], cc[0]))
+                    offset = theta / tp.rot_rate
+                    print(ic, c, theta, offset)
+                    # print(df)
+                    ax = fig.add_subplot(5, 5, ic + 1)
+                    ax.plot(df['time'].values + offset, dts)
+                    ax.plot(df['time'].values + offset, bfadi_exo)
+                plt.tight_layout()
+                plt.show()
+
+        true_pos, false_neg, false_pos, true_neg = get_metric_distributions(self.df['bfadi_exo'].values, self.df['exo'].values, sum=True)
+        print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
+
+        planet_df = self.df.loc[self.df['bfadi_exo'] == 1]
+        if plot_dict['out_map']:
+            exo_image, _, _ = np.histogram2d(planet_df['x'], planet_df['y'], bins=[np.arange(150)]*2)
+            exo_image[exo_image==0] = 0.5
+            plt.figure()
+            plt.imshow(exo_image, norm=LogNorm())
+            plt.show()
+
+        photons = [planet_df.loc[planet_df['exo']==i][['time', 'wave', 'x', 'y']].values for i in range(2)]
+
+        return photons
+
+    def assign_derot(self):
         self.df = self.df.sort_values('time')
 
         # if config['data']['trans_polar']:
@@ -549,6 +621,21 @@ class DtReform(Reform):
         I2d = binned_I_sub.reshape(150,150)
         return I2d
 
+    def med_I(self):
+        print('calculating planet image')
+        self.i = 0
+        N = 10
+        def below_mean(dts):
+            self.i += 1
+            sma = np.convolve(dts, np.ones((N,)) / N, mode='same')
+            num_planet = np.sum(sma < dts.mean())
+            print(self.i, num_planet)
+            return num_planet
+        binned_I_sub, _, _ = scipy.stats.binned_statistic(self.df['res_id'], self.df['dtime'], statistic=below_mean,
+                                                          bins=self.id_bins)
+        I2d = binned_I_sub.reshape(150,150)
+        return I2d
+
     def ADI(self):
         # grid(self.wavecube)
         angle_list = -np.linspace(0, sp.numframes * sp.sample_time * tp.rot_rate, self.wavecube.shape[0])
@@ -570,6 +657,10 @@ class DtReform(Reform):
                 np.linspace(-200, 200, 100)]
 
         self.all_tess, edges = np.histogramdd(self.all_photons, bins=bins)
+
+    def process_photons(self):
+        raise NotImplementedError
+
 
 
 class MedisParams():
@@ -620,7 +711,7 @@ def make_input(config):
 
     # get info on each photoncloud
     outfiles = np.append(config['trainfiles'], config['testfiles'])
-    debugs = [False] * config['data']['num_indata']
+    debugs = [True] * config['data']['num_indata']
     # debugs[0] = False
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
@@ -635,19 +726,25 @@ def make_input(config):
             print('Already exists')
         else:
             astro = mp(i)
-            if not aug_ind:  # any number > 0
-                obs = MedisObs(f'{i}', astro, debug=False)
-                photons = obs.photons
+            # if not aug_ind:  # any number > 0
+            med_ind = np.arange(config['data']['num_indata'])[i]//(config['data']['aug_ratio']+1)
+            obs = MedisObs(f'{med_ind}', astro, debug=False)
+            photons = obs.photons
 
-            if config['model'] == 'minkowski':
-                reformer = NnReform
-            elif config['model'] == 'lightgbm':
-                reformer = DtReform
+            # if config['model'] == 'minkowski':
+            if config['pre_adi']:
+                r = DtReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
+                photons = r.binfree_ADI(plot_dict={'Annulus stream': False, 'Each pix stream': False, 'out_map': False})
 
-            r = reformer(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
+            r = NnReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
             r.process_photons()
-            r.adjust_companion(astro)
+            # r.adjust_companion(astro)
             r.save_class()
+
+            # elif config['model'] == 'lightgbm':
+            #     r = DtReform
+            #     r.assign_derot()
+            #     r.save_class()
 
     workingdir_config = config['working_dir'] + 'config.yml'
     repo_config = os.path.join(os.path.dirname(__file__), 'config/config.yml')
