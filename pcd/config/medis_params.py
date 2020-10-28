@@ -3,14 +3,17 @@ MEDIS configuration file
 
 """
 
+import os
 import numpy as np
 from medis.params import sp, ap, tp, iop, mp, atmp
 from pcd.config.config import config
 
 iop.datadir = config['working_dir']
+# iop.photonlist = os.path.join(iop.datadir, 'photonlist.pkl')
+# print(iop.photonlist, 'photonlist')
 
 sp.sample_time = 30  # 0.5
-sp.numframes = 60
+sp.numframes = 20
 sp.grid_size = 512
 sp.num_processes = 7
 sp.beam_ratio = 0.15
@@ -45,7 +48,7 @@ tp.ao_act = 50
 tp.use_atmos = True
 tp.prescription = 'general_telescope'
 tp.cg_type = 'Solid'
-tp.rot_rate = 0  # do rotation with input.py now   1./60  # 9  # deg/s
+tp.rot_rate = 1./20  #0  # do rotation with input.py now   1./60  # 9  # deg/s
 tp.pix_shift = [0, 0]
 
 mp.array_size = np.array([150,150])

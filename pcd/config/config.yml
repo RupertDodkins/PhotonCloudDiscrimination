@@ -1,6 +1,8 @@
+# A file to change and get stored in your working dir for reference
+
 debug: True
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 201019/]  # concat DIR with that suffix and store as WDIR
+working_dir: &WDIR !join [*DIR, 201026b/]  # concat DIR with that suffix and store as WDIR
 overwrite_cache: False
 pointnet_version: 2
 num_point: &PN 200000  #  # 131072 262144
@@ -9,24 +11,22 @@ testfiles: !join [*WDIR, 'testfile_{id}.h5']
 dimensions: 4
 task: sem_seg
 classes: 2  # star=0, planet=1
-model:  minkowski  # lightgbm  #
+pre_adi: True
+model: minkowski  # minkowski  # lightgbm  #
 savepath: !join [*WDIR, 'test95.pth']
 
 data:
-  num_indata: 25  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
+  num_indata: 1  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
   null_frac: 0.  # num of input data that are null (no planet photons)
-  test_frac: 0.04
-  aug_ratio: 99  # For every 1 medis input duplicate and rotate it {aug_ratio} times
+  test_frac: 0.0
+  aug_ratio: 0  # For every 1 medis input duplicate and rotate it {aug_ratio} times
   medis_config: "medis_params.py"
-  angles: 45  # (0,360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
-  lods: 4  #(1,7) #,2,3,5,3]
-  contrasts: [-2,-6] #(-4,-2) #,-2,-2,-2,-2]
+  angles: 45  #(0,360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  lods: 4 #,2,3,5,3]
+  contrasts: -4 #(-4,-2) #,-2,-2,-2,-2]
   star_spectra: 6000
   planet_spectra: 1000 #(500,2000) #,3000,3000,3000,3000] # length(num_indata) + 1
-#  num_augs: 4  # number of rotations to apply to each input
   time_diff: False
-#  trans_polar: False
-#  normalize: False
   quantize: True
   batch_coords: True
   rot_rate: 1  # deg/min
@@ -44,13 +44,6 @@ train:
   learning_rate: 0.0001  # 1e-5   todo use
   cache_freq: 10  # todo use
   roc_probabilities: False
-#  out_collapse: mean  # mean | argmax  todo confirm and delete these options under new pytorch system
-#  momentum: 0.9
-#  optimizer: adam
-#  decay_step: 500 #300000
-#  decay_rate: 0.5
-#  num_train_batch: 5  # load batches of train data with this size on each cycle in train()
-#  num_test_batch: 2  # load batches of train data with this size on each cycle in train()
 
 mec:
   dark_data: /mnt/data0/dodkins/mec/20200731/Hip5319/dither_2/drizzled_h5s/
