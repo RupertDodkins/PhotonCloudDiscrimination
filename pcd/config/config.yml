@@ -2,7 +2,7 @@
 
 debug: True
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 201026b/]  # concat DIR with that suffix and store as WDIR
+working_dir: &WDIR !join [*DIR, 201028/]  # concat DIR with that suffix and store as WDIR
 overwrite_cache: False
 pointnet_version: 2
 num_point: &PN 200000  #  # 131072 262144
@@ -16,20 +16,20 @@ model: minkowski  # minkowski  # lightgbm  #
 savepath: !join [*WDIR, 'test95.pth']
 
 data:
-  num_indata: 1  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
+  num_indata: 10  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
   null_frac: 0.  # num of input data that are null (no planet photons)
-  test_frac: 0.0
-  aug_ratio: 0  # For every 1 medis input duplicate and rotate it {aug_ratio} times
+  test_frac: 0.1
+  aug_ratio: 9  # For every 1 medis input duplicate and rotate it {aug_ratio} times
   medis_config: "medis_params.py"
-  angles: 45  #(0,360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  angles: 315  #(0,360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
   lods: 4 #,2,3,5,3]
-  contrasts: -4 #(-4,-2) #,-2,-2,-2,-2]
+  contrasts: -3 #(-4,-2) #,-2,-2,-2,-2]
   star_spectra: 6000
   planet_spectra: 1000 #(500,2000) #,3000,3000,3000,3000] # length(num_indata) + 1
   time_diff: False
   quantize: True
   batch_coords: True
-  rot_rate: 1  # deg/min
+  rot_rate: 3  # deg/min
 
 train:
   gpu: 1
@@ -48,7 +48,7 @@ train:
 mec:
   dark_data: /mnt/data0/dodkins/mec/20200731/Hip5319/dither_2/drizzled_h5s/
   h5s: # [1596290345.h5, 1596290351.h5, ...] or leave blank for all in folder
-  dithered: True  # use the RA/Dec columns and align in time vs use x/y from beammap with no time adjustment
+  dithered: False  # use the RA/Dec columns and align in time vs use x/y from beammap with no time adjustment
   offset: [100, -55]  # area to crop
   glados_inputfiles: !join [*WDIR, 'inputfile_{id}.h5']
   companion_coords: [60, 174, 5]  # x,y,r  can get these values by eye with debug == True on MecObs()

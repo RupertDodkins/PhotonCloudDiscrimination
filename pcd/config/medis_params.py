@@ -27,9 +27,9 @@ sp.num_processes = 3
 ap.companion = True
 
 if config['model'] != 'minkowski':  # minkowski only has one pointcloud per input data so requires less photons
-    ap.star_flux = 1e7/180 * config['num_point']/65536.
+    ap.star_flux = 1e7/1.8 * config['num_point']/65536.
 else:
-    ap.star_flux = 1e5/180 * config['num_point']/65536.  # 1e5 flux is sufficient for a 65536 point point-cloud
+    ap.star_flux = 1e5/1.8 * config['num_point']/65536.  # 1e5 flux is sufficient for a 65536 point point-cloud
 ap.spectra = None
 ap.contrast = [10**-2]
 ap.companion_xy = [[2.5,0]]
@@ -48,7 +48,7 @@ tp.ao_act = 50
 tp.use_atmos = True
 tp.prescription = 'general_telescope'
 tp.cg_type = 'Solid'
-tp.rot_rate = 1./20  #0  # do rotation with input.py now   1./60  # 9  # deg/s
+tp.rot_rate = 0  #0  # do rotation with input.py now   1./60  # 9  # deg/s
 tp.pix_shift = [0, 0]
 
 mp.array_size = np.array([150,150])
