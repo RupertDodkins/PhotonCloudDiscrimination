@@ -32,6 +32,8 @@ class MedisObs():
         iop.update_testname(str(name))
         iop.photonlist = iop.photonlist.split('.')[0]+'.pkl'
         print(iop.photonlist, 'photonlist')
+        self.astro = astro
+        self.numobj = len(ap.contrast) + 1
         if os.path.exists(iop.photonlist):
             with open(iop.photonlist, 'rb') as handle:
                 self.photons = pickle.load(handle)
@@ -48,8 +50,6 @@ class MedisObs():
                 ap.companion = False
             else:
                 ap.companion = True
-
-            self.numobj = len(ap.contrast)+1
 
             # instantiate but don't generate data yet
             tel = Telescope(usesave=sp.save_to_disk)
@@ -94,7 +94,38 @@ class MedisObs():
         if debug:
             self.display_2d_hists()
 
-        dprint(len(self.photons))
+    def adjust_companion(self):
+        # brightness change
+        ratio = self.astro[0] / 10. ** config['data']['contrasts'][0]
+
+        assert ratio <= 1
+        planet_inds = range(len(self.photons[1]))
+        del_planet_inds = np.sort(random.sample(list(planet_inds), int(len(planet_inds) * (1-ratio))))
+        self.photons[1] = np.delete(self.photons[1], del_planet_inds, axis=0)
+
+        # location changes
+        planet_photons = self.photons[1]
+        angles = np.deg2rad(planet_photons[:,0] * config['data']['rot_rate']/60)
+        yc, xc = np.mean(planet_photons[:,2]), np.mean(planet_photons[:,3])
+        rad_offset = self.astro[1] * 10
+        planet_photons[:,3] += -xc + rad_offset[1]
+        planet_photons[:,2] += -yc + rad_offset[0]
+        x_rot = planet_photons[:,3] * np.cos(angles) - planet_photons[:,2] * np.sin(angles)
+        y_rot = planet_photons[:,3] * np.sin(angles) + planet_photons[:,2] * np.cos(angles)
+        planet_photons[:, 3], planet_photons[:,2] = x_rot + mp.array_size[0]/2, y_rot + mp.array_size[0]/2
+        for a in [planet_photons[:, 3], planet_photons[:, 2]]:
+            a[a<0] = 0
+            a[a>=mp.array_size[0]] = mp.array_size[0]-1
+
+        # spectrum changes
+        wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], ap.n_wvl_final)
+        spectrum = planck(self.astro[2][1], wsamples)
+        spectrum /= np.sum(spectrum)
+        dist = Distribution(spectrum)
+        phot_spec = dist(len(planet_photons))[0]
+        planet_photons[:, 1] = phot_spec*150/np.max(phot_spec) - 150
+
+        self.photons[1] = planet_photons
 
     def log_params(self):
         """ Log the MEDIS parameters for reference """
@@ -134,7 +165,7 @@ class MedisObs():
                     np.linspace(self.photons[0][:,2].min(), self.photons[0][:,2].max(), 150),
                     np.linspace(self.photons[0][:,3].min(), self.photons[0][:,3].max(), 150)]
         else:
-            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-250, 0, 50), range(mp.array_size[0]),
+            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-150, 0, 50), range(mp.array_size[0]),
                     range(mp.array_size[1])]
 
         # if config['data']['trans_polar']:
@@ -152,7 +183,7 @@ class MedisObs():
                 if pair in [['x','p'], ['x','t']]:
                     image = image.T
                     inds = inds[1], inds[0]
-                axes[o,p].imshow(image, aspect='auto', origin='lower',
+                axes[o,p].imshow(image, aspect='auto', origin='lower', norm=LogNorm(),
                                  extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
 
         plt.show(block=True)
@@ -406,7 +437,6 @@ class DtReform(Reform):
                                 'y':self.all_photons[:,3]})
 
         self.df['exo'] = self.all_pids[:,0]
-        cam = Camera(usesave=False, product='photons')
 
         self.id_bins = np.arange(mp.array_size[0] * mp.array_size[1])
         beammap = self.id_bins.reshape(mp.array_size)
@@ -416,7 +446,8 @@ class DtReform(Reform):
         self.df = self.df.sort_values(['res_id', 'time'])
         I, _ = np.histogram(self.df['res_id'], self.id_bins)
 
-        plt.imshow(I.reshape(cam.array_size), norm=LogNorm())
+        plt.figure(figsize=(12,12))
+        plt.imshow(I.reshape(mp.array_size), norm=LogNorm(), origin='lower')
         # self.df['I'] = I[self.df['res_id'].values] / max(I)
 
         dt = self.df['time'].values - np.roll(self.df['time'].values,1,0)
@@ -441,9 +472,11 @@ class DtReform(Reform):
 
         self.df['bfadi_exo'] = np.zeros(len(self.df))
 
-        # rads = [np.sqrt((38-75)**2 + (54-75)**2)]
-        rads = np.arange(fwhm, 12 * fwhm, dists)
+        # rads = [np.sqrt((102-75)**2 + (102-75)**2)]; dists = 5
+        rads = np.arange(7*fwhm, 12 * fwhm, dists)
+        # rads = np.arange(fwhm, 12 * fwhm, dists)
         for rad in rads:
+            print(f'locating planets at rad {rad}')
             centered_coords = find_coords(rad, dists)
             annuli_coords = np.array([centered_coords[i] + 75 for i in range(2)]).astype(int)
 
@@ -455,7 +488,7 @@ class DtReform(Reform):
                 dts = df['dtime'].values
                 cc = centered_coords.T[ic]
                 theta = np.rad2deg(np.arctan2(cc[1], cc[0]))
-                offset = theta / tp.rot_rate
+                offset = theta / (config['data']['rot_rate']/60)
                 all_times = np.append(all_times, df['time'].values + offset)
                 all_dts = np.append(all_dts, dts)
                 all_ids = np.append(all_ids, df.index.values)
@@ -470,7 +503,7 @@ class DtReform(Reform):
 
             self.df.loc[all_ids, 'bfadi_exo'] = bfadi_exo
 
-            if plot_dict['Annulus stream']:
+            if plot_dict['Annulus stream'] == rad:
                 plt.figure()
                 plt.title(f'{rad} annulus combined time stream')
                 plt.plot(all_times, all_dts)
@@ -479,32 +512,18 @@ class DtReform(Reform):
                 plt.plot(all_times, bfadi_exo)
                 plt.tight_layout()
 
-                # bfadi_exo = bfadi_exo[orig_order]
-                # all_times = all_times[orig_order]
-                # all_dts = all_dts[orig_order]
-
-                # plt.figure()
-                # plt.plot(all_times, all_dts)
-                # plt.plot(all_times, bfadi_exo)
-                # plt.show()
-
-                # plt.figure()
-                # plt.plot(self.df.loc[all_ids]['x'].values, self.df.loc[all_ids]['y'].values)
-                # print(self.df.loc[self.df['bfadi_exo'] == 1])
-                # plt.plot(self.df.loc[self.df['bfadi_exo'] == 1]['x'], self.df.loc[self.df['bfadi_exo'] == 1]['y'])
-
-            if plot_dict['Each pix stream']:
-                fig = plt.figure()
-                for ic, c in enumerate(annuli_coords.T[:25]):
+            if plot_dict['Each pix stream'] == rad:
+                fig = plt.figure(figsize=(12,12))
+                for ic, c in enumerate(annuli_coords.T[:50]):
                     df = self.df[(self.df['x'] == c[0]) & (self.df['y'] == c[1])]
                     dts = df['dtime'].values
                     bfadi_exo = df['bfadi_exo'].values
                     cc = centered_coords.T[ic]
                     theta = np.rad2deg(np.arctan2(cc[1], cc[0]))
-                    offset = theta / tp.rot_rate
-                    print(ic, c, theta, offset)
+                    offset = theta / config['data']['rot_rate']
+                    # print(ic, c, theta, offset)
                     # print(df)
-                    ax = fig.add_subplot(5, 5, ic + 1)
+                    ax = fig.add_subplot(5, 10, ic + 1)
                     ax.plot(df['time'].values + offset, dts)
                     ax.plot(df['time'].values + offset, bfadi_exo)
                 plt.tight_layout()
@@ -518,7 +537,7 @@ class DtReform(Reform):
             exo_image, _, _ = np.histogram2d(planet_df['x'], planet_df['y'], bins=[np.arange(150)]*2)
             exo_image[exo_image==0] = 0.5
             plt.figure()
-            plt.imshow(exo_image, norm=LogNorm())
+            plt.imshow(exo_image, norm=LogNorm(), origin='lower')
             plt.show()
 
         photons = [planet_df.loc[planet_df['exo']==i][['time', 'wave', 'x', 'y']].values for i in range(2)]
@@ -726,15 +745,16 @@ def make_input(config):
             print('Already exists')
         else:
             astro = mp(i)
-            # if not aug_ind:  # any number > 0
             med_ind = np.arange(config['data']['num_indata'])[i]//(config['data']['aug_ratio']+1)
             obs = MedisObs(f'{med_ind}', astro, debug=False)
+            obs.adjust_companion()
+            obs.display_2d_hists()
             photons = obs.photons
 
             # if config['model'] == 'minkowski':
             if config['pre_adi']:
                 r = DtReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
-                photons = r.binfree_ADI(plot_dict={'Annulus stream': False, 'Each pix stream': False, 'out_map': False})
+                photons = r.binfree_ADI(plot_dict={'Annulus stream': 40, 'Each pix stream': False, 'out_map': True})
 
             r = NnReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
             r.process_photons()
