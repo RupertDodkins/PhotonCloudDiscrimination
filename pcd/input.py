@@ -36,7 +36,7 @@ class MedisObs():
         self.numobj = len(ap.contrast) + 1
         if os.path.exists(iop.photonlist):
             with open(iop.photonlist, 'rb') as handle:
-                self.photons = pickle.load(handle)
+                self.photons, self.photlist_astro = pickle.load(handle)
         else:
             self.medis_cache = iop.testdir
 
@@ -80,16 +80,16 @@ class MedisObs():
 
                 self.photons.append(photons.T)
 
+            self.photlist_astro = self.astro
             with open(iop.photonlist, 'wb') as handle:
-                pickle.dump(self.photons, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump((self.photons, self.photlist_astro), handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         if debug:
             self.display_2d_hists()
 
     def adjust_companion(self):
         # brightness change
-        ratio = self.astro[0] / 10. ** config['data']['contrasts'][0]
-
+        ratio = self.astro[0]/self.photlist_astro[0] # 10. ** config['data']['contrasts'][0]
         assert ratio <= 1
         planet_inds = range(len(self.photons[1]))
         del_planet_inds = np.sort(random.sample(list(planet_inds), int(len(planet_inds) * (1-ratio))))
@@ -99,7 +99,7 @@ class MedisObs():
         planet_photons = self.photons[1]
         angles = np.deg2rad(planet_photons[:,0] * config['data']['rot_rate']/60)
         yc, xc = np.mean(planet_photons[:,2]), np.mean(planet_photons[:,3])
-        rad_offset = self.astro[1] * 10
+        rad_offset = self.photlist_astro[1] * 10
         planet_photons[:,3] += -xc + rad_offset[1]
         planet_photons[:,2] += -yc + rad_offset[0]
         x_rot = planet_photons[:,3] * np.cos(angles) - planet_photons[:,2] * np.sin(angles)
@@ -111,7 +111,7 @@ class MedisObs():
 
         # spectrum changes
         wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], ap.n_wvl_final)
-        spectrum = planck(self.astro[2][1], wsamples)
+        spectrum = planck(self.photlist_astro[2][1], wsamples)
         spectrum /= np.sum(spectrum)
         dist = Distribution(spectrum)
         phot_spec = dist(len(planet_photons))[0]
@@ -363,11 +363,12 @@ class NnReform(Reform):
         plt.show(block=True)
 
 class DtReform(Reform):
-    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, dithered=False):
+    def __init__(self, photons, outfile, astro, train_type='train', aug_ind=0, debug=False, dithered=False):
         super().__init__(photons, outfile, train_type, aug_ind, debug, dithered)
 
         self.aggregate_photons()
         self.sort_photons()
+        self.astro= astro
 
         self.df = pd.DataFrame({'time':self.all_photons[:,0],
                                 'wave':self.all_photons[:,1],
@@ -411,11 +412,11 @@ class DtReform(Reform):
             plt.figure(figsize=(12,12))
             plt.imshow(I.reshape(mp.array_size), norm=LogNorm(), origin='lower')
 
-        rads = np.arange(np.round((config['data']['lods'].min()-0.5) * fwhm),
-                         np.round((config['data']['lods'].max()+0.5) * fwhm),
-                         dists)
-        # rads = np.arange(39, 42, dists)
-        for rad in rads:
+        # rads = np.arange(np.round((np.min(config['data']['lods'])-0.5) * fwhm),
+        #                  np.round((np.max(config['data']['lods'])+0.5) * fwhm),
+        #                  dists)
+        rads = np.arange(55, 70, dists)
+        for ir, rad in enumerate(rads):
             if rad % 10 == 0:
                 print(f'locating planets at rad {rad}')
             centered_coords = find_coords(rad, dists)
@@ -448,15 +449,19 @@ class DtReform(Reform):
 
             self.df.loc[all_ids, 'bfadi_exo'] = bfadi_exo
 
-            if rad in plot_dict['Annulus stream']:
-                plt.figure()
-                plt.title(f'{rad} annulus combined time stream')
-                plt.plot(all_times, all_dts)
-                plt.plot(all_times, sma)
-                plt.axhline(np.median(all_dts))
-                plt.plot(all_times, bfadi_exo)
-                plt.plot(all_times, all_exo)
-                plt.tight_layout()
+            if plot_dict['Annulus stream']:
+                exo_loc = np.sqrt(np.sum(self.astro[1]**2)) * 10
+                print(exo_loc, rads[ir-1], rads[ir], exo_loc >= rads[ir-1] and exo_loc < rads[ir])
+                if exo_loc >= rads[ir-1] and exo_loc < rads[ir]:
+                    plt.figure()
+                    plt.title(f'{rad} annulus combined time stream')
+                    plt.plot(all_times, all_dts)
+                    plt.plot(all_times, sma)
+                    plt.axhline(np.median(all_dts))
+                    plt.plot(all_times, bfadi_exo)
+                    plt.plot(all_times, all_exo)
+                    plt.tight_layout()
+                    plt.show()
 
             if plot_dict['Each pix stream'] == rad:
                 fig = plt.figure(figsize=(12,12))
@@ -484,16 +489,21 @@ class DtReform(Reform):
         #     print(testdf.loc[testdf['exo'] != testdf['bfadi_exo']][['x', 'y', 'exo', 'bfadi_exo']])
 
         planet_df = self.df.loc[self.df['bfadi_exo'] == 1]
+
         if plot_dict['out_map']:
             bins = [np.arange(150)] * 2
-            both_image, _, _ = np.histogram2d(self.df['x'].values, self.df['y'].values, bins)
-            exo_image, _, _ = np.histogram2d(planet_df['x'], planet_df['y'], bins)
+            metric_inds = get_metric_distributions(self.df['exo'].values.astype(int),
+                                                    self.df['bfadi_exo'].values.astype(int),
+                                                    sum=False)
+            titles = ['true_pos', 'false_neg', 'false_pos', 'true_neg']
             fig = plt.figure()
-            for i, image in enumerate([both_image, exo_image]):
+            for i,m in enumerate(metric_inds):
+                image, _, _ = np.histogram2d(self.df.loc[m]['x'], self.df.loc[m]['y'], bins)
                 image[image==0] = 0.5
-                ax = fig.add_subplot(1,2,i+1)
+                ax = fig.add_subplot(2,2,i+1)
                 ax.imshow(image, norm=LogNorm(), origin='lower')
-
+                ax.set_title(titles[i])
+            plt.tight_layout()
             plt.show()
 
         photons = [planet_df.loc[planet_df['exo']==i][['time', 'wave', 'x', 'y']].values for i in range(config['classes'])]
@@ -549,7 +559,7 @@ def make_input(config):
 
     # get info on each photoncloud
     outfiles = np.append(config['trainfiles'], config['testfiles'])
-    debugs = [False] * config['data']['num_indata']
+    debugs = [True] * config['data']['num_indata']
     # debugs[0] = False
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
@@ -570,8 +580,8 @@ def make_input(config):
             photons = obs.photons
 
             if config['pre_adi']:
-                r = DtReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
-                photons = r.binfree_ADI(plot_dict={'in_map':False, 'Annulus stream': [], 'Each pix stream': False, 'out_map': False})
+                r = DtReform(photons, outfile, astro=astro, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
+                photons = r.binfree_ADI(plot_dict={'in_map':False, 'Annulus stream': True, 'Each pix stream': False, 'out_map': True})
 
             r = NnReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], astro=astro)
             r.process_photons()
