@@ -31,9 +31,8 @@ class MedisObs():
         """ astro tuple containing contrast, lod and spectra tuple"""
         iop.update_testname(str(name))
         iop.photonlist = iop.photonlist.split('.')[0]+'.pkl'
-        print(iop.photonlist, 'photonlist')
         self.astro = astro
-        print(astro)
+        print(f"contrast: {np.log10(astro[0])}, loc: {astro[1]*10}, spec temp: {astro[2]}")
         self.numobj = len(ap.contrast) + 1
         if os.path.exists(iop.photonlist):
             with open(iop.photonlist, 'rb') as handle:
@@ -412,10 +411,13 @@ class DtReform(Reform):
             plt.figure(figsize=(12,12))
             plt.imshow(I.reshape(mp.array_size), norm=LogNorm(), origin='lower')
 
-        rads = np.arange((config['data']['lods'].min()-0.5)*fwhm, (config['data']['lods'].max()+0.5) * fwhm, dists)
+        rads = np.arange(np.round((config['data']['lods'].min()-0.5) * fwhm),
+                         np.round((config['data']['lods'].max()+0.5) * fwhm),
+                         dists)
         # rads = np.arange(39, 42, dists)
         for rad in rads:
-            print(f'locating planets at rad {rad}')
+            if rad % 10 == 0:
+                print(f'locating planets at rad {rad}')
             centered_coords = find_coords(rad, dists)
             annuli_coords = np.array([centered_coords[i] + 75 for i in range(2)]).astype(int)
 
