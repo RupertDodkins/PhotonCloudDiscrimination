@@ -390,6 +390,13 @@ class DtReform(Reform):
 
         self.df['dtime'] = dt
 
+        exo_ind = self.df['exo']==1
+        exo_res, amounts = np.unique(self.df.loc[exo_ind]['res_id'], return_counts=True)
+
+        bright_exo_res = exo_res[amounts > np.max(amounts)/10]
+        bright_res_inds = self.df[self.df['res_id'].isin(bright_exo_res)].index  # indicies of photons that are on those res_ids
+        self.df.loc[bright_res_inds, 'exo'] = 1
+
     def binfree_ADI(self, dists=1, N=50, fwhm=10, plot_dict={}):
         """ todo reformat to match this format https://stackoverflow.com/questions/52265120/python-multiprocessing-pool-map-attributeerror-cant-pickle-local-object/52283968 """
 
