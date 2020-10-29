@@ -201,7 +201,7 @@ class Reform():
 
 class NnReform(Reform):
     """ Creates the input data in the NN input format """
-    def __init__(self, photons, outfile, train_type='train', aug_ind=0, debug=False, dithered=False):
+    def __init__(self, photons, outfile, astro, train_type='train', aug_ind=0, debug=False, dithered=False):
         super().__init__(photons, outfile, train_type, aug_ind, debug, dithered)
 
         self.chunked_photons = []
@@ -209,6 +209,7 @@ class NnReform(Reform):
         self.labels = []
         self.data = []
         self.pids = []
+        self.astro = astro
 
         self.normalised = False
 
@@ -277,6 +278,9 @@ class NnReform(Reform):
                 hf.create_dataset('pid', data=self.pids)
             if config['pointnet_version'] == 2:
                 hf.create_dataset('smpw', data=self.smpw)
+            hf.attrs[u'contrast'] = self.astro[0]
+            hf.attrs[u'loc'] = self.astro[1] * 10
+            hf.attrs[u'spec'] = self.astro[2][1]
 
     def adjust_companion(self, astro):
         # brightness change
@@ -387,6 +391,7 @@ class DtReform(Reform):
         self.df['dtime'] = dt
 
     def binfree_ADI(self, dists=1, N=50, fwhm=10, plot_dict={}):
+        """ todo reformat to match this format https://stackoverflow.com/questions/52265120/python-multiprocessing-pool-map-attributeerror-cant-pickle-local-object/52283968 """
 
         def find_coords(rad, sep):
             npoints = (np.deg2rad(360) * rad) / sep  # (2*np.pi*rad)/sep
@@ -519,6 +524,11 @@ def load_h5(h5_filename):
     data = f['data'][:]
     label = f['label'][:]
     smpw = f['smpw'][:]
+    try:
+        print(f"contrast: {np.log10(f.attrs['contrast'])}, loc: {f.attrs['loc']}, spec temp: {f.attrs['spec']}")
+    except KeyError:
+        print('no astro info known')
+
     return (data, label, smpw)
 
 def load_dataset(in_file, shuffle=False):
@@ -537,7 +547,7 @@ def make_input(config):
 
     # get info on each photoncloud
     outfiles = np.append(config['trainfiles'], config['testfiles'])
-    debugs = [True] * config['data']['num_indata']
+    debugs = [False] * config['data']['num_indata']
     # debugs[0] = False
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
@@ -559,9 +569,9 @@ def make_input(config):
 
             if config['pre_adi']:
                 r = DtReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
-                photons = r.binfree_ADI(plot_dict={'in_map':True, 'Annulus stream': [40], 'Each pix stream': False, 'out_map': True})
+                photons = r.binfree_ADI(plot_dict={'in_map':False, 'Annulus stream': [], 'Each pix stream': False, 'out_map': False})
 
-            r = NnReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
+            r = NnReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i], astro=astro)
             r.process_photons()
             r.save_class()
 
