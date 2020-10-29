@@ -487,26 +487,16 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     for step in range(start, end+1, jump):
         cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[step]
 
-        true_pos, false_neg, false_pos, true_neg = get_metric_distributions(cur_seg, pred_seg_res, sum=True)
+        metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
+        true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
 
         print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
-        print('true_pos: %f' % (true_pos))
-        print('true_neg: %f' % (true_neg))
-        print('false_pos: %f' % (false_pos))
-        print('false_neg: %f' % (false_neg))
-        try:  # sometimes there are no true_positives
-            print('Recall: %f' % (true_pos / (true_pos + false_neg)))
-            print('Precision: %f' % (true_pos / (true_pos + false_pos)))
-        except ZeroDivisionError:
-            pass
 
         metrics[2], metrics[3] = metrics[3], metrics[2]
 
         images = [[]]*len(metrics)
         for row, metric in enumerate(metrics):
             red_data = cur_data[metric]
-            # if config['data']['trans_polar']:
-            #     red_data = trans_p2c(red_data)
 
             images[row] = [[]]*len(dim_pairs)
             for ib, dim_pair in enumerate(dim_pairs):
