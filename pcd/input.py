@@ -10,7 +10,7 @@ import h5py
 from vip_hci.medsub import medsub_source
 import pandas as pd
 pd.options.display.max_columns = None
-import scipy
+from scipy.signal import convolve2d
 import pickle
 
 from medis.telescope import Telescope
@@ -33,6 +33,7 @@ class MedisObs():
         iop.photonlist = iop.photonlist.split('.')[0]+'.pkl'
         print(iop.photonlist, 'photonlist')
         self.astro = astro
+        print(astro)
         self.numobj = len(ap.contrast) + 1
         if os.path.exists(iop.photonlist):
             with open(iop.photonlist, 'rb') as handle:
@@ -353,7 +354,7 @@ class NnReform(Reform):
                 if pair in [['x','p'], ['x','t']]:
                     image = image.T
                     inds = inds[1], inds[0]
-                axes[o,p].imshow(image, norm=None, aspect='auto',
+                axes[o,p].imshow(image, norm=LogNorm(), aspect='auto',
                                  extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
 
         plt.show(block=True)
@@ -367,8 +368,8 @@ class DtReform(Reform):
 
         self.df = pd.DataFrame({'time':self.all_photons[:,0],
                                 'wave':self.all_photons[:,1],
-                                'x':self.all_photons[:,2],
-                                'y':self.all_photons[:,3]})
+                                'x':self.all_photons[:,2].astype(int),
+                                'y':self.all_photons[:,3].astype(int)})
 
         self.df['exo'] = self.all_pids[:,0]
 
@@ -378,11 +379,6 @@ class DtReform(Reform):
 
         self.df['res_id'] = beammap[self.df['x'].values.astype(int), self.df['y'].values.astype(int)]
         self.df = self.df.sort_values(['res_id', 'time'])
-        I, _ = np.histogram(self.df['res_id'], self.id_bins)
-
-        plt.figure(figsize=(12,12))
-        plt.imshow(I.reshape(mp.array_size), norm=LogNorm(), origin='lower')
-        # self.df['I'] = I[self.df['res_id'].values] / max(I)
 
         dt = self.df['time'].values - np.roll(self.df['time'].values,1,0)
         trans = np.roll(self.df['res_id'].values,1,0) - self.df['res_id'].values != 0
@@ -390,7 +386,7 @@ class DtReform(Reform):
 
         self.df['dtime'] = dt
 
-    def binfree_ADI(self, dists=1, N=50, fwhm=5, plot_dict={}):
+    def binfree_ADI(self, dists=1, N=50, fwhm=10, plot_dict={}):
 
         def find_coords(rad, sep):
             npoints = (np.deg2rad(360) * rad) / sep  # (2*np.pi*rad)/sep
@@ -406,9 +402,13 @@ class DtReform(Reform):
 
         self.df['bfadi_exo'] = np.zeros(len(self.df))
 
-        # rads = [np.sqrt((102-75)**2 + (102-75)**2)]; dists = 5
-        rads = np.arange(7*fwhm, 12 * fwhm, dists)
-        # rads = np.arange(fwhm, 12 * fwhm, dists)
+        if plot_dict['in_map']:
+            I, _ = np.histogram(self.df['res_id'], self.id_bins)
+            plt.figure(figsize=(12,12))
+            plt.imshow(I.reshape(mp.array_size), norm=LogNorm(), origin='lower')
+
+        rads = np.arange((config['data']['lods'].min()-0.5)*fwhm, (config['data']['lods'].max()+0.5) * fwhm, dists)
+        # rads = np.arange(39, 42, dists)
         for rad in rads:
             print(f'locating planets at rad {rad}')
             centered_coords = find_coords(rad, dists)
@@ -417,6 +417,7 @@ class DtReform(Reform):
             all_times = np.empty(0)
             all_dts = np.empty(0)
             all_ids = np.empty(0)
+            all_exo = np.empty(0)
             for ic, c in enumerate(annuli_coords.T):
                 df = self.df[(self.df['x'] == c[0]) & (self.df['y'] == c[1])]
                 dts = df['dtime'].values
@@ -426,24 +427,28 @@ class DtReform(Reform):
                 all_times = np.append(all_times, df['time'].values + offset)
                 all_dts = np.append(all_dts, dts)
                 all_ids = np.append(all_ids, df.index.values)
+                all_exo = np.append(all_exo, df['exo'].values)
 
             sort_ind = np.argsort(all_times)
             all_times = all_times[sort_ind]
             all_dts = all_dts[sort_ind]
             all_ids = all_ids[sort_ind]
+            all_exo = all_exo[sort_ind]
 
-            sma = np.convolve(all_dts, np.ones((N,)) / N, mode='same')
+            # sma = np.convolve(all_dts, np.ones((N,)) / N, mode='same')
+            sma = convolve2d(all_dts[:,np.newaxis], np.ones((N,))[:,np.newaxis] / N, mode='same', boundary='wrap')
             bfadi_exo = sma < np.median(all_dts)
 
             self.df.loc[all_ids, 'bfadi_exo'] = bfadi_exo
 
-            if plot_dict['Annulus stream'] == rad:
+            if rad in plot_dict['Annulus stream']:
                 plt.figure()
                 plt.title(f'{rad} annulus combined time stream')
                 plt.plot(all_times, all_dts)
                 plt.plot(all_times, sma)
                 plt.axhline(np.median(all_dts))
                 plt.plot(all_times, bfadi_exo)
+                plt.plot(all_times, all_exo)
                 plt.tight_layout()
 
             if plot_dict['Each pix stream'] == rad:
@@ -455,16 +460,21 @@ class DtReform(Reform):
                     cc = centered_coords.T[ic]
                     theta = np.rad2deg(np.arctan2(cc[1], cc[0]))
                     offset = theta / config['data']['rot_rate']
-                    # print(ic, c, theta, offset)
-                    # print(df)
                     ax = fig.add_subplot(5, 10, ic + 1)
                     ax.plot(df['time'].values + offset, dts)
                     ax.plot(df['time'].values + offset, bfadi_exo)
                 plt.tight_layout()
                 plt.show()
 
-        true_pos, false_neg, false_pos, true_neg = get_metric_distributions(self.df['bfadi_exo'].values, self.df['exo'].values, sum=True)
+        true_pos, false_neg, \
+        false_pos, true_neg = get_metric_distributions(self.df['exo'].values.astype(int),
+                                                       self.df['bfadi_exo'].values.astype(int),
+                                                       sum=True)
         print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
+
+        # testdf = self.df.sort_values(['x', 'y'])
+        # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        #     print(testdf.loc[testdf['exo'] != testdf['bfadi_exo']][['x', 'y', 'exo', 'bfadi_exo']])
 
         planet_df = self.df.loc[self.df['bfadi_exo'] == 1]
         if plot_dict['out_map']:
@@ -505,17 +515,10 @@ def load_h5(h5_filename):
     return (data, label, smpw)
 
 def load_dataset(in_file, shuffle=False):
-    # for in_file in in_files:
     assert os.path.isfile(in_file), f'[error] {in_file} dataset path not found'
 
-    # in_data = np.empty((0, config['num_point'], config['dimensions']))
-    # in_label = np.empty((0, config['num_point']))
-
-    # for in_file in in_files:
     print(f'loading {in_file}')
     in_data, in_label, class_weights = load_h5(in_file)
-    # in_data = np.concatenate((in_data, file_in_data), axis=0)
-    # in_label = np.concatenate((in_label, file_in_label), axis=0)
 
     if shuffle:
         raise NotImplementedError
@@ -549,7 +552,7 @@ def make_input(config):
 
             if config['pre_adi']:
                 r = DtReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
-                photons = r.binfree_ADI(plot_dict={'Annulus stream': 40, 'Each pix stream': False, 'out_map': True})
+                photons = r.binfree_ADI(plot_dict={'in_map':True, 'Annulus stream': [40], 'Each pix stream': False, 'out_map': True})
 
             r = NnReform(photons, outfile, train_type=train_type, aug_ind=aug_ind, debug=debugs[i])
             r.process_photons()
