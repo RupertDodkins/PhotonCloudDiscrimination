@@ -204,7 +204,8 @@ def get_photons(amount=1):
     cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-amount]
     del alldata
 
-    true_pos, false_neg, false_pos, true_neg = get_metric_distributions(cur_seg, pred_seg_res, sum=True)
+    metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
+    true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
     print(trainbool)
     print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
 
@@ -395,7 +396,7 @@ def contrast_curve():
 
 
 if __name__ == '__main__':
-    # get_reduced_images(ind=-8, plot=True)
+    get_reduced_images(ind=-8, plot=True)
     # plot_3D_pointclouds()
     # ROC_curve()
     # view_reduced()
