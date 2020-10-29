@@ -478,13 +478,20 @@ class DtReform(Reform):
 
         planet_df = self.df.loc[self.df['bfadi_exo'] == 1]
         if plot_dict['out_map']:
-            exo_image, _, _ = np.histogram2d(planet_df['x'], planet_df['y'], bins=[np.arange(150)]*2)
-            exo_image[exo_image==0] = 0.5
-            plt.figure()
-            plt.imshow(exo_image, norm=LogNorm(), origin='lower')
+            bins = [np.arange(150)] * 2
+            both_image, _, _ = np.histogram2d(self.df['x'].values, self.df['y'].values, bins)
+            exo_image, _, _ = np.histogram2d(planet_df['x'], planet_df['y'], bins)
+            fig = plt.figure()
+            for i, image in enumerate([both_image, exo_image]):
+                image[image==0] = 0.5
+                ax = fig.add_subplot(1,2,i+1)
+                ax.imshow(image, norm=LogNorm(), origin='lower')
+
             plt.show()
 
-        photons = [planet_df.loc[planet_df['exo']==i][['time', 'wave', 'x', 'y']].values for i in range(2)]
+        photons = [planet_df.loc[planet_df['exo']==i][['time', 'wave', 'x', 'y']].values for i in range(config['classes'])]
+        # self.df = self.df.drop(self.df.loc[self.df['bfadi_exo'] == 0].index)
+        # photons = [self.df.loc[self.df['exo'] == i][['time', 'wave', 'x', 'y']].values for i in range(config['classes'])]
 
         return photons
 
