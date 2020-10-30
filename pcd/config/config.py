@@ -59,11 +59,10 @@ def convert_astro(config):
             bounds = np.float_(config['data'][astro].split(','))
             config['data'][astro] = np.random.uniform(bounds[0], bounds[1], config['data']['num_indata'])
 
-    config['data']['contrasts'] = np.sort(config['data']['contrasts'])[::-1]  # since first data must have most photons
     return config
 
 def convert_inputfiles(config):
-    num_test = config['data']['num_indata'] * config['data']['test_frac']
+    num_test = np.round(config['data']['num_indata'] * config['data']['test_frac'])
     num_test = int(num_test)
     num_train = config['data']['num_indata'] - num_test
     num_eval = config['data']['num_indata']

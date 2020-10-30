@@ -37,6 +37,7 @@ class MedisObs():
         if os.path.exists(iop.photonlist):
             with open(iop.photonlist, 'rb') as handle:
                 self.photons, self.photlist_astro = pickle.load(handle)
+
         else:
             self.medis_cache = iop.testdir
 
@@ -90,6 +91,7 @@ class MedisObs():
     def adjust_companion(self):
         # brightness change
         ratio = self.astro[0]/self.photlist_astro[0] # 10. ** config['data']['contrasts'][0]
+        print(self.astro[0]/self.photlist_astro[0], self.photlist_astro[0], self.astro[0])
         assert ratio <= 1
         planet_inds = range(len(self.photons[1]))
         del_planet_inds = np.sort(random.sample(list(planet_inds), int(len(planet_inds) * (1-ratio))))
@@ -99,7 +101,7 @@ class MedisObs():
         planet_photons = self.photons[1]
         angles = np.deg2rad(planet_photons[:,0] * config['data']['rot_rate']/60)
         yc, xc = np.mean(planet_photons[:,2]), np.mean(planet_photons[:,3])
-        rad_offset = self.photlist_astro[1] * 10
+        rad_offset = self.astro[1] * 10
         planet_photons[:,3] += -xc + rad_offset[1]
         planet_photons[:,2] += -yc + rad_offset[0]
         x_rot = planet_photons[:,3] * np.cos(angles) - planet_photons[:,2] * np.sin(angles)
@@ -111,9 +113,11 @@ class MedisObs():
 
         # spectrum changes
         wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], ap.n_wvl_final)
-        spectrum = planck(self.photlist_astro[2][1], wsamples)
+        spectrum = planck(self.astro[2][1], wsamples)
         spectrum /= np.sum(spectrum)
-        dist = Distribution(spectrum)
+        interp = True if len(planet_photons) > 1 else False
+        dist = Distribution(spectrum, interpolation=interp)
+
         phot_spec = dist(len(planet_photons))[0]
         planet_photons[:, 1] = phot_spec*150/np.max(phot_spec) - 150
 
@@ -229,6 +233,7 @@ class NnReform(Reform):
 
         if total_photons > self.num_point:
             rand_keep = random.sample(range(total_photons), self.num_point)
+            total_photons = self.num_point
         else:
             rand_keep = np.arange(total_photons)
         self.chunked_photons = self.all_photons[rand_keep]
@@ -566,7 +571,7 @@ def make_input(config):
 
     # get info on each photoncloud
     outfiles = np.append(config['trainfiles'], config['testfiles'])
-    debugs = [True] * config['data']['num_indata']
+    debugs = [False] * config['data']['num_indata']
     # debugs[0] = False
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
