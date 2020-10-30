@@ -604,5 +604,16 @@ def make_input(config):
     if not os.path.exists(workingdir_config):
         shutil.copyfile(repo_config, workingdir_config)
 
+def make_eval():
+    """ Creates a single input file with what you need for hyperparam tests for example """
+    config['data']['num_indata'] = 1
+    config['data']['test_frac'] = 1
+    config['data']['contrasts'] = [-9]
+    config['data']['angles'] = [225]
+    config['data']['lods'] = [7]
+    config['trainfiles'] = []
+    make_input(config)
+
+
 if __name__ == "__main__":
     make_input(config)

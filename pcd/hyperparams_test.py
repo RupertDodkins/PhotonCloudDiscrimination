@@ -133,15 +133,6 @@ def input_performance():
     plt.legend()
     plt.show()
 
-def make_eval():
-    config['data']['num_indata'] = 1
-    config['data']['test_frac'] = 1
-    config['data']['contrasts'] = [-9]
-    config['data']['angles'] = [225]
-    config['data']['lods'] = [7]
-    config['trainfiles'] = []
-    make_input(config)
-
 def blob_ROC_curves():
     predict()
     reduced_images = get_reduced_images(ind=-1, plot=False)
