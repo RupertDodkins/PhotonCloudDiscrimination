@@ -6,15 +6,12 @@ the pkl cache
 
 """
 
-import os
 import argparse
 import pickle
 import matplotlib.pylab as plt
 from matplotlib.colors import LogNorm
 import numpy as np
-import time
 from medis.utils import dprint
-from pcd.config.medis_params import mp, ap
 from pcd.config.config import config
 import utils
 import h5py
@@ -101,8 +98,6 @@ class Grid_Visualiser():
             for ic in range(len(images[0])):
                 self.ims.append(self.axes[ir, ic].imshow(images[ir][ic], norm=norm, aspect='auto',
                                                          extent=extent, vmax=vmax[ir]))  # ,
-        # extent=[min(bins[1]),max(bins[1]),
-        #        min(bins[0]),max(bins[0])]))
 
         self.fig.canvas.draw()
         # input("Press n to create a new figure or anything else to continue using this one")
@@ -163,7 +158,6 @@ def update_metrics(cur_seg, pred_seg_res, train, metrics, loss=-1):
     true_pos, false_neg, false_pos, true_neg = np.float64(np.sum(metrics_vol[0])), np.float64(np.sum(metrics_vol[1])), \
                                                np.float64(np.sum(metrics_vol[2])), np.float64(np.sum(metrics_vol[3])),
 
-    # tot_neg, tot_pos = true_neg + false_neg, true_pos + false_pos
     tot_neg, tot_pos = true_neg + false_pos, true_pos + false_neg
     dprint(tot_neg, tot_pos, train)
 
@@ -207,7 +201,6 @@ def onetime_metric_streams(start=0, end=10):
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
 
-    # axes = initialize_axes(metric_types+['Loss','Accuracy'])
     axes = initialize_axes(plot_metric_types)
     metrics = initialize_metrics(metric_types)
 
@@ -228,17 +221,10 @@ def onetime_metric_streams(start=0, end=10):
         if kind == 'test':
             epochs = np.linspace(0, num * config['train']['cache_freq']/num_test, num)
 
-        # dprint(kind, end+1, len(epochs), len(metrics[kind][metric_types[0]]), losses)
         for ax, metric_key in zip(axes, plot_metric_types):
             metrics[kind]['lines'].append(ax.plot(epochs, metrics[kind][metric_key], c=metrics[kind]['color'],
                                                   label=kind))
 
-        # # sometimes losses
-        # try:
-        #     axes[-2].plot(epochs, losses[:len(epochs)], c=metrics[kind]['color'], label=kind)
-        #     axes[-1].plot(epochs, accuracies[:len(epochs)], c=metrics[kind]['color'], label=kind)
-        # except ValueError:
-        #     print(f'epochs and losses wrong length ?! {len(epochs)}, {len(losses)} respectively')
     axes[0].legend()
 
     plt.show(block=True)
@@ -279,12 +265,12 @@ def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos)
 def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     """ Shows the net predictions on the cloud as a series of 2d histograms in 4x4 grid of form
      ___________________________
-    |_______|
-    |_layer_|
-    |___TP__|
-    |___FP__|
-    |___TN__|
-    |___FN__|
+    |_______|____coord_pairs____|
+    |_layer_|_xy_|_py_|_ty_|_pt_|
+    |___TP__|____|____|____|____|
+    |___FP__|____|____|____|____|
+    |___TN__|____|____|____|____|
+    |___FN__|____|____|____|____|
 
     """
 
@@ -305,11 +291,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     else:
         bins = [np.linspace(-1, 1, 100) * 1e6] * 4
 
-    # dim_pairs = [[2, 3], [2, 1], [2, 0], [0, 1]]
-    # dim_pairs = [[3, 1], [3, 0], [3, 2], [2, 0]]
-    # dim_pairs = [[3, 1], [3, 2], [3, 0], [1, 2]]
     dim_pairs = [[3, 2], [3, 1], [3, 0], [1, 2]]
-    # dim_pairs = np.array(dim_pairs)[[1, 3, 0, 2]]
 
     for step in range(start, end+1, jump):
         cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[step]
