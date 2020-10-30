@@ -4,7 +4,6 @@ Monitors the predictions of a training model and plots various metrics
 inputs
 the pkl cache
 
-#todo consolidate metric streams into a single class and do the same for metric tesseracts
 """
 
 import os
@@ -138,114 +137,12 @@ def get_metric_distributions(cur_seg, pred_seg_res, sum=True):
 
     return metrics
 
-def three_d_scatter(cur_data, metrics):
-    fig = plt.figure(figsize=(12, 9))
-    colors = ['green', 'orange', 'purple', 'blue', ]
-    ax = fig.add_subplot(111, projection='3d')
-    for metric, c in zip(metrics, colors[:len(metrics)]):
-        red_data = cur_data[metric]
-        ax.scatter(red_data[:, 3], red_data[:, 1], red_data[:, 2], c=c, marker='o', s=2)  # , marker=pids[0])
-    ax.view_init(elev=10., azim=-10)
-    plt.show()
-
-def cloud(epoch=-1):
-    alldata = load_meta()
-    cur_seg, pred_seg_res, cur_data, _ = alldata[epoch]
-    metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
-    three_d_scatter(cur_data, metrics)
-
-
-def continuous_metric_streams():
-    while not os.path.exists(config['train']['outputs']):
-        print('Waiting for model to output first metric data')
-        time.sleep(5)
-
-    # set axes
-    plt.ion()
-    plt.show(block=True)
-    metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall', 'Precision']
-    # fig, axes = utils.init_grid(rows=2, cols=int(np.ceil(len(metric_types)/2)), figsize=(12, 9))
-    # axes = axes.flatten()
-    # for ax, metric_type in zip(axes, metric_types):
-    #     ax.set_title(metric_type)
-    #
-    # metric_keys = ['true_pos_stream', 'false_neg_stream', 'false_pos_stream', 'true_neg_stream', 'recall']
-    # values = [np.empty(0)]*5
-    #
-    # metrics = {}
-    # metrics['train'] = dict(zip(metric_keys, values))
-    # metrics['test'] = dict(zip(metric_keys, values))
-    # print(metrics['train'])
-    # metrics['train']['lines'], metrics['test']['lines'] = [], []
-    # metrics['train']['color'], metrics['test']['color'] = 'C1', 'C0'
-
-    axes = initialize_axes(metric_types)
-    metrics = initialize_metrics(metric_types)
-
-    epoch = 0
-    while True:
-        alldata = load_meta()
-        if len(alldata) > 1 and len(metrics['train']['true_pos_stream'])==0:
-            print('*** Warning *** ML cache already has mutliple time steps saved. Consider running metric_streams or '
-                  'creating new file. Stopping continuous_streams.')
-            # break
-
-        dprint(len(alldata), len(metrics['train']['true_pos_stream']), len(metrics['train']['true_pos_stream']))
-
-        if len(alldata) == len(metrics['train']['true_pos_stream'])+len(metrics['train']['true_pos_stream']) + 1:
-            cur_seg, pred_seg_res, cur_data, train = alldata[-1]  # will get progressively slower as whole file load is required to get final element
-
-            if train:
-                # todo unhard code this
-                epoch += 0.25
-                epochs = np.arange(0,epoch,0.25)
-            else:
-                epochs = np.arange(0, epoch, 1)
-
-            # metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, sum=True)
-
-            # tot_neg, tot_pos = true_neg + false_neg, true_pos + false_pos
-            # dprint(tot_neg, tot_pos, train)
-            #
-            kind = 'train' if train else 'test'
-            # metrics[kind]['true_pos_stream'] = np.append(metrics[kind]['true_pos_stream'], true_pos/tot_pos)
-            # metrics[kind]['false_neg_stream'] = np.append(metrics[kind]['false_neg_stream'], false_neg/tot_neg)
-            # metrics[kind]['false_pos_stream'] = np.append(metrics[kind]['false_pos_stream'], false_pos/tot_pos)
-            # metrics[kind]['true_neg_stream'] = np.append(metrics[kind]['true_neg_stream'], true_neg/tot_neg)
-            #
-            # if metrics[kind]['true_pos_stream'][-1] + metrics[kind]['false_neg_stream'][-1] == 0:
-            #     metrics[kind]['recall'] = np.append(metrics[kind]['recall'], np.nan)
-            # else:
-            #     metrics[kind]['recall'] = np.append(metrics[kind]['recall'],
-            #                                         metrics[kind]['true_pos_stream'][-1] /
-            #                                         (metrics[kind]['true_pos_stream'][-1] +
-            #                                          metrics[kind]['false_neg_stream'][-1]))
-            metrics = update_metrics(cur_seg, pred_seg_res, kind, metrics)
-
-            if len(metrics[kind]['lines']) > 0:
-                [line.pop(0).remove() for line in metrics[kind]['lines']]
-                metrics[kind]['lines'] = []
-
-            dprint(len(epochs), len(metrics[kind][metric_types[0]]), epochs, metrics[kind][metric_types[0]])
-            for ax, metric_key in zip(axes, metric_types):
-                metrics[kind]['lines'].append(ax.plot(epochs, metrics[kind][metric_key], c=metrics['train']['color']))
-
-            fig.canvas.draw()
-        else:
-            print('No new data yet')
-            time.sleep(10)
-            # continue
-        time.sleep(0.01)
-
 def initialize_axes(metric_types):
     fig, axes = utils.init_grid(rows=2, cols=int(np.ceil(len(metric_types)/2)), figsize=(16, 9))
     axes = axes.flatten()
     for ax, metric_type in zip(axes, metric_types):
         ax.set_title(metric_type)
     return axes
-
-def update_axes():
-    pass
 
 def initialize_metrics(metric_types):
     values = [np.empty(0)]*len(metric_types)
@@ -346,37 +243,6 @@ def onetime_metric_streams(start=0, end=10):
 
     plt.show(block=True)
 
-def plot_summary_data():
-    """ Functionality should have been incorporated into onetime metric streams """
-    import tensorflow as tf
-    import glob
-
-    num_train, num_test = num_input()
-    fig, axes = utils.init_grid(rows=1, cols=2, figsize=(12, 9))
-
-    for kind in ['train', 'test']:
-        dir = f"{config['working_dir']}/{kind}"
-        lastfile = sorted(glob.glob(f'{dir}/*.thebeast'), key=os.path.getmtime)[-1]
-        print(lastfile)
-        losses, accuracies = [], []
-        for e in tf.train.summary_iterator(lastfile):
-            for v in e.summary.value:
-                if v.tag == 'loss':
-                    losses.append(v.simple_value)
-                elif v.tag == 'accuracy':
-                    accuracies.append(v.simple_value)
-
-        num = len(losses)
-        if kind == 'train':
-            epochs = np.linspace(0, num / int(num_train / config['train']['batch_size']), num)
-        if kind == 'test':
-            epochs = np.linspace(0, num / int(num_test / config['train']['batch_size']), num)
-
-        axes[0, 0].plot(epochs, losses, label=kind)
-        axes[0, 1].plot(epochs, accuracies, label=kind)
-
-    plt.show()
-
 def get_range_inds(start, end, allsteps):
     if start < 0:
         start = allsteps+start
@@ -409,45 +275,6 @@ def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos)
     print('false_pos: %f' % (false_pos))
     print('false_neg: %f' % (false_neg))
     return conf
-
-
-
-# def continuous_metric_tesseracts():
-#     pass
-#
-# # def visualise_grid(start, end, step, epoch_format):
-
-def check_inputs(ind=None):
-    alldata = load_meta()
-    allsteps = len(alldata)
-
-    # fig, axes = utils.init_grid(rows=config['classes'], cols=config['dimensions'])
-    # # fig, axes = utils.init_grid(rows=self.num_classes, cols=4)
-    # fig.suptitle(f'{ind}', fontsize=16)
-    # plt.tight_layout()
-    #
-    # bins = [np.linspace(-1, 1, 50), np.linspace(-1, 1, 50), np.linspace(-1, 1, 150), np.linspace(-1, 1, 150)]
-    #
-    # # coord = 'tpxy'
-    # coord = 'pytx'
-    #
-    # for o in range(config['classes']):
-    #     if ind:
-    #         H, _ = np.histogramdd(self.data[ind, (self.labels[ind] == o)], bins=bins)
-    #     else:
-    #         H, _ = np.histogramdd(self.data[self.labels == o], bins=bins)
-    #
-    #     for p, pair in enumerate([['x', 'y'], ['x', 'p'], ['x', 't'], ['p', 't']]):
-    #         inds = coord.find(pair[0]), coord.find(pair[1])
-    #         sumaxis = tuple(np.delete(range(len(coord)), inds))
-    #         image = np.sum(H, axis=sumaxis)
-    #         if pair in [['x', 'p'], ['x', 't']]:
-    #             image = image.T
-    #             inds = inds[1], inds[0]
-    #         axes[o, p].imshow(image, norm=LogNorm(), aspect='auto',
-    #                           extent=[bins[inds[0]][0], bins[inds[0]][-1], bins[inds[1]][0], bins[inds[1]][-1]])
-    #
-    # plt.show(block=True)
 
 def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     """ Shows the net predictions on the cloud as a series of 2d histograms in 4x4 grid of form
@@ -508,190 +335,6 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
         visualiser.update(step, trainbool, images, norm=None, extent=[-1,1,-1,1])
     plt.show(block=True)
 
-def investigate_layer(start=-10, end=-1, jump=1):
-    """ Shows the net layers of the cloud as a series of 2d histograms in num_inputsx4 grid of form
-     __________________________________
-    |_____________|____batch_index____|
-    |____layer____|_0_|_1_|_2_|...|_n_|
-    |__pred_star__|___|___|___|...|___|
-    |__pred_comp__|___|___|___|...|___|
-    |_total_layer_|___|___|___|...|___|
-    |__pred_star__|___|___|___|...|___|
-    |__pred_comp__|___|___|___|...|___|
-
-    """
-
-    assert end != 0
-    # assert jump >= config['train']['cache_freq']
-
-    all_layers = load_meta(kind='layers')
-    all_outputs = load_meta(kind='outputs')
-
-    allsteps = len(all_layers)
-    start, end = get_range_inds(start, end, allsteps)
-
-    visualiser = Grid_Visualiser(rows=6, cols=config['train']['batch_size'], numsteps=allsteps,
-                                 row_headings= ['pred_star', 'pred_comp', 'correct planet', 'missed planet',
-                                                'missed star', 'correct star']
-                                 )
-    bins = np.linspace(-1, 1, 150)
-
-    for l in range(9):
-        for step in range(start, end + 1, jump):
-            layer, trainbool = all_layers[step]
-            layer = layer[l]
-            batch_labels, pred_val, batch_data, _ = all_outputs[step]
-
-            # images = [[[]] * config['train']['batch_size']]*5
-
-            images = [[]] * 6
-            for i in range(6):
-                images[i] = [[]] * config['train']['batch_size']
-
-            for ic in range(config['train']['batch_size']):
-                x, y = batch_data[ic, :, :2][~(np.ones(2) * pred_val[ic, :, None]).astype(bool)].reshape(-1,2).T
-                images[0][ic], _, _ = np.histogram2d(x,y, bins=bins)
-
-                x, y = batch_data[ic, :, :2][(np.ones(2) * pred_val[ic, :, None]).astype(bool)].reshape(-1,2).T
-                images[1][ic], _, _ = np.histogram2d(x,y, bins=bins)
-
-                metrics = get_metric_distributions(batch_labels[ic], pred_val[ic], sum=False)
-
-                if layer.shape[-1] != 4:
-                    for ii, im in enumerate(range(2,6)):
-                        images[im][ic] = layer[ic] * (np.ones(layer.shape[-1])*metrics[ii][:,None])
-                else:
-                    for ii, im in enumerate(range(2, 6)):
-                        x, y = layer[ic,:,:2][(np.ones(2)*metrics[ii][:,None]).astype(bool)].reshape(-1,2).T
-                        images[im][ic] = np.histogram2d(x, y, bins=150)[0]
-
-            visualiser.update(step, trainbool, images)#, vmax=[None, None, 1, 1, 1, 1])
-    plt.show(block=True)
-
-def load_layers(start=-10, end=-1, jump=1, num_inputs=3, interactive=False):
-    """ Shows the net layers of the cloud as a series of 2d histograms in num_inputsx4 grid of form
-     ___________________________
-    |_______|____batch_index____|
-    |_layer_|_0_|_1_|_2_|...|_n_|
-    |_input_|___|___|___|...|___|
-    |___1___|___|___|___|...|___|
-    |___2___|___|___|___|...|___|
-    |___3___|___|___|___|...|___|
-    |___4___|___|___|___|...|___|
-    |   .   | . | . | . |   | . |
-    |   .   | . | . | . |   | . |
-    |___.___|_._|_._|_._|   |_._|
-    |___m___|___|___|___|...|___|
-    """
-
-    assert num_inputs <= config['train']['batch_size']
-    assert end != 0
-    # assert jump >= config['train']['cache_freq']
-
-    alldata = load_meta(kind='layers')
-
-    allsteps = len(alldata)
-    start, end = get_range_inds(start, end, allsteps)
-    num_layers = len(alldata[0][0])
-
-    visualiser = Grid_Visualiser(rows=num_layers, cols=num_inputs, numsteps=allsteps,)
-                                 #row_headings= ['Input','Layer 1','Layer 2','Layer 3','Layer 4'])
-
-    for step in range(start, end + 1, jump):
-        pointclouds, trainbool = alldata[step]
-
-        images = [[]] * num_layers
-        for ir, row in enumerate(range(num_layers)):
-            pointcloud = pointclouds[row]
-
-            images[row] = [[]] * num_inputs
-            for ic in range(num_inputs):
-                images[row][ic] = pointcloud[ic]
-
-        # if not interactive:
-        #     visualiser = Grid_Visualiser(rows=num_layers, cols=num_inputs, numsteps=allsteps,
-        #                                  row_headings=['Input', 'Layer 1', 'Layer 2', 'Layer 3', 'Layer 4'])
-        visualiser.update(step, trainbool, images)
-    plt.show(block=True)
-
-def load_pointclouds(start=-10, end=-1, jump=1, ib=0):
-    """ Shows the net layers of the cloud as a series of 2d histograms in num_inputsx4 grid of form
-     ___________________________
-    |_______|_______Pair________|
-    |_layer_|_xy_|_py_|_ty_|_pt_|
-    |_input_|____|____|____|____|
-    |___1___|____|____|____|____|
-    |___2___|____|____|____|____|
-    |   .   |  . |  . |  . |  . |
-    |   .   |  . |  . |  . |  . |
-    |___.___|__._|__._|__._|__._|
-    |___m___|____|____|____|____|
-
-
-    """
-
-    assert end != 0
-    # assert jump >= config['train']['cache_freq']
-
-    alldata = load_meta(kind='layers')
-    allsteps = len(alldata)
-    start, end = get_range_inds(start, end, allsteps)
-    # if np.array([len(pc.shape)==3 for pc in alldata[0][0]]).all():
-    num_layers = len(alldata[0][0])
-    # else:
-
-    print([pointcloud.shape[-1]==4 for pointcloud in alldata[0][0]])
-    if not np.all([pointcloud.shape[-1]==4 for pointcloud in alldata[0][0]]):
-        print('Skipping point clouds format display')
-        return
-    # bins = np.linspace(-3,3,100)
-    # bins = [np.linspace(-1, 1, 150)] * 4
-    bins = [150]*4
-    # dim_pairs = [[2, 3], [2, 1], [2, 0], [0, 1]]
-    dim_pairs = [[3, 1], [3, 2], [3, 0], [1, 2]]
-    num_inputs = len(dim_pairs)
-
-    visualiser = Grid_Visualiser(rows=num_layers, cols=num_inputs, numsteps=allsteps,
-                                 # row_headings= ['Input','Aug','Gather','Group0','Group1','Group2'])
-                                row_headings=None
-                                 )
-
-    for step in range(start, end + 1, jump):
-        pointclouds, trainbool = alldata[step]
-
-        images = [[]] * num_layers
-        bounds = [[]] * num_layers
-        for row in range(num_layers):
-            pointcloud = pointclouds[row]
-
-            images[row] = [[]] * num_inputs
-            bounds[row] = [[]] * num_inputs
-            for ic , dim_pair in enumerate(dim_pairs):
-                H, b1, b2 = np.histogram2d(pointcloud[ib,:,dim_pair[0]],pointcloud[ib,:,dim_pair[1]], bins[ic])#, bins=50)#np.linspace(-3,3,100/(ic+1)))#, bins=bins)
-                # ims.append(axes[row, ic].imshow(H, norm=LogNorm(), aspect='auto', extent=[min(b1),max(b1),min(b2),max(b2)]))
-                extent=[min(b1),max(b1),min(b2),max(b2)]
-
-                images[row][ic] = H
-                bounds[row][ic] = extent
-        visualiser.update(step, trainbool, images, extent=[-1,1,-1,1], norm=LogNorm())
-    plt.show(block=True)
-
-def trans_p2c(photons):
-    # photons[2] += 1
-    # photons[2] *= mp.array_size[1]/2
-    photons[:, 3] *= np.pi
-    photons[:, 2] += 1
-
-    x = photons[:, 2] * np.cos(photons[:, 3])
-    y = photons[:, 2] * np.sin(photons[:, 3])
-
-    # x += mp.array_size[1]/2
-    # y += mp.array_size[0]/2
-
-    photons[:, 2], photons[:, 3] = x, y
-
-    return photons
-
 def pt_step(input_data, input_label, pred_val, loss, train=True, verbose=True):
     if not config['train']['roc_probabilities']:
         pred_val = np.argmax(pred_val, axis=-1)
@@ -714,49 +357,10 @@ def pt_step(input_data, input_label, pred_val, loss, train=True, verbose=True):
         conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
         print(conf)
 
-
-def tf_step(input_data, input_label, pred_val, train=True):
-    """ Get values of tensors to save them and read by metric_tesseracts """
-
-    if not isinstance(pred_val, np.ndarray):
-        pred_val = pred_val.numpy()
-    if not isinstance(input_label, np.ndarray):
-        input_label = input_label.numpy()
-    if not isinstance(input_data, np.ndarray):
-        input_data = input_data.numpy()
-    if not isinstance(train, bool):
-        train = train.numpy()
-
-    if len(pred_val.shape) > 1:
-        pred_val = np.argmax(pred_val, axis=-1)
-
-    with open(config['train']['outputs'], 'ab') as handle:
-        field_tup = (input_label, pred_val, input_data, train)
-        pickle.dump(field_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    pos = input_label == 1
-    neg = input_label == 0
-
-    true_pos = int(np.sum(np.logical_and(pos, np.round(pred_val) == 1)))
-    false_pos = int(np.sum(np.logical_and(neg, np.round(pred_val) == 1)))
-    true_neg = int(np.sum(np.logical_and(neg, np.round(pred_val) == 0)))
-    false_neg = int(np.sum(np.logical_and(pos, np.round(pred_val) == 0)))
-    conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos,
-                            true_pos + false_neg)
-
-    print(conf)
-    try:
-        print('Precision: %f' % (true_pos / (true_pos + false_pos)))
-        print('Recall: %f' % (true_pos / (true_pos + false_neg)))
-    except ZeroDivisionError:
-        pass
-
-    return 1, 1, 1, True
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
     onetime_metric_streams(end = -1)
-    metric_tesseracts(start = 0, end = -1, jump=10)
+    metric_tesseracts(start = 0, end = -1, jump=1)
 
