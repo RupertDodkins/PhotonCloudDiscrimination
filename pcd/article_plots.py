@@ -16,8 +16,9 @@ from vip_hci.preproc import cube_derotate
 from medis.params import ap, sp, mp, tp
 from medis.plot_tools import grid
 
-from visualization import load_meta, get_metric_distributions, confusion_matrix, trans_p2c
+from visualization import load_meta, get_metric_distributions, confusion_matrix
 from pcd.config.config import config
+import utils
 
 home = os.path.expanduser("~")
 # sp.numframes = 100
@@ -226,7 +227,6 @@ def get_tess(ind=-1):
     # all_photons, star_photons, planet_photons = all_photons[:,:-1], star_photons[:,:-1], planet_photons[:,:-1]
     # if config['data']['trans_polar']:
     #     for photons in [all_photons, star_photons, planet_photons]:
-    #         photons = trans_p2c(photons)
 
     # bins = [np.linspace(-1, 1, sp.numframes + 1), np.linspace(-1, 1, ap.n_wvl_final + 1),
     #         np.linspace(-1, 1, mp.array_size[0]), np.linspace(-1, 1, mp.array_size[1])]
@@ -394,6 +394,48 @@ def contrast_curve():
         # grid(imlist, logZ=True, vlim=(1,60), show=False)
     # plt.show(block=True)
 
+
+def rad_cont():
+    """  """
+    fwhm = 5
+    hwhm = fwhm/2
+    image_width = 150
+    alldata = load_meta(kind='pt_outputs', amount=1)
+    cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-1]
+    del alldata
+
+    metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
+    true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
+
+    tot_neg = true_neg + false_pos
+    tot_pos = true_pos + false_neg
+    print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos))
+    exo_pred = true_pos + false_pos
+    if exo_pred == 0:
+        cont = 1
+        return cont
+    # else:
+    throughput = true_pos/tot_pos
+
+    planet_photons = np.concatenate((cur_data[metrics[0]], cur_data[metrics[1]]), axis=0)
+
+    planet_map, _, _ = np.histogram2d(planet_photons[:, 3], planet_photons[:, 2],
+                                      bins=[np.linspace(-200, 200, image_width)] * 2)
+
+    raw_planet_location = np.mean(planet_photons[:,2:], axis=0)
+    planet_location = (raw_planet_location+200) * image_width/400
+    planet_radius = np.sqrt(np.sum(np.abs(image_width/2-planet_location)**2))
+
+    star_photons = cur_data[metrics[2]]
+    star_map, _, _ = np.histogram2d(star_photons[:,3], star_photons[:,2], bins=[np.linspace(-200,200,image_width)]*2)
+    stds, rads = noise_per_annulus(star_map, fwhm, fwhm)
+    ann_ind = np.where((rads > planet_radius - hwhm) & (rads < planet_radius+ hwhm))[0][0]
+    std = stds[ann_ind]
+
+    print(raw_planet_location, planet_location, planet_radius, ann_ind)
+
+    cont = std*5/(throughput*tot_neg)
+    return cont
 
 if __name__ == '__main__':
     get_reduced_images(ind=-8, plot=True)

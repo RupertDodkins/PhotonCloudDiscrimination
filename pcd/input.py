@@ -405,18 +405,6 @@ class DtReform(Reform):
     def binfree_ADI(self, dists=1, N=50, fwhm=10, plot_dict={}):
         """ todo reformat to match this format https://stackoverflow.com/questions/52265120/python-multiprocessing-pool-map-attributeerror-cant-pickle-local-object/52283968 """
 
-        def find_coords(rad, sep):
-            npoints = (np.deg2rad(360) * rad) / sep  # (2*np.pi*rad)/sep
-            ang_step = 360 / npoints  # 360/npoints
-            x = []
-            y = []
-            for i in range(int(npoints)):
-                newx = rad * np.cos(np.deg2rad(ang_step * i))
-                newy = rad * np.sin(np.deg2rad(ang_step * i))
-                x.append(newx)
-                y.append(newy)
-            return np.array([np.array(y), np.array(x)])
-
         self.df['bfadi_exo'] = np.zeros(len(self.df))
 
         if plot_dict['in_map']:
@@ -431,7 +419,7 @@ class DtReform(Reform):
         for ir, rad in enumerate(rads):
             if rad % 10 == 0:
                 print(f'locating planets at rad {rad}')
-            centered_coords = find_coords(rad, dists)
+            centered_coords = utils.find_coords(rad, dists)
             annuli_coords = np.array([centered_coords[i] + 75 for i in range(2)]).astype(int)
 
             all_times = np.empty(0)
@@ -608,12 +596,13 @@ def make_eval():
     """ Creates a single input file with what you need for hyperparam tests for example """
     config['data']['num_indata'] = 1
     config['data']['test_frac'] = 1
-    config['data']['contrasts'] = [-9]
+    config['data']['contrasts'] = [-3]
     config['data']['angles'] = [225]
-    config['data']['lods'] = [7]
+    config['data']['lods'] = [6]
     config['trainfiles'] = []
     make_input(config)
 
 
 if __name__ == "__main__":
-    make_input(config)
+    # make_input(config)
+    make_eval()

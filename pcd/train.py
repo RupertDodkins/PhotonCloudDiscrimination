@@ -13,7 +13,7 @@ from examples.minkunet import MinkUNet34C, MinkUNet14A
 # from examples.unet import UNet
 
 from pcd.config.config import config
-from pcd.visualization import tf_step, pt_step
+from pcd.visualization import pt_step
 from pcd.input import load_dataset
 
 if os.path.exists(config['train']['pt_outputs']):
