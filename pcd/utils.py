@@ -15,3 +15,15 @@ def init_grid(rows, cols, figsize=None):
     plt.tight_layout()
 
     return fig, axes
+
+def find_coords(rad, sep):
+    npoints = (np.deg2rad(360) * rad) / sep  # (2*np.pi*rad)/sep
+    ang_step = 360 / npoints  # 360/npoints
+    x = []
+    y = []
+    for i in range(int(npoints)):
+        newx = rad * np.cos(np.deg2rad(ang_step * i))
+        newy = rad * np.sin(np.deg2rad(ang_step * i))
+        x.append(newx)
+        y.append(newy)
+    return np.array([np.array(y), np.array(x)])
