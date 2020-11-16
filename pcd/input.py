@@ -20,7 +20,7 @@ from medis.plot_tools import grid
 from medis.distribution import planck, Distribution
 
 from pcd.config.medis_params import sp, ap, tp, iop, mp
-from pcd.config.config import config
+from pcd.config.config import config, convert_astro, convert_inputfiles
 import utils
 from visualization import confusion_matrix, get_metric_distributions
 
@@ -91,7 +91,7 @@ class MedisObs():
     def adjust_companion(self):
         # brightness change
         ratio = self.astro[0]/self.photlist_astro[0] # 10. ** config['data']['contrasts'][0]
-        print(self.astro[0]/self.photlist_astro[0], self.photlist_astro[0], self.astro[0])
+        print(ratio, self.photlist_astro[0], self.astro[0])
         assert ratio <= 1
         planet_inds = range(len(self.photons[1]))
         del_planet_inds = np.sort(random.sample(list(planet_inds), int(len(planet_inds) * (1-ratio))))
@@ -522,11 +522,14 @@ class MedisParams():
             self.contrasts[::int(1 / config['data']['null_frac'])] = 0
         invalid_contrast = np.array(config['data']['contrasts']) > 0
         self.contrasts[invalid_contrast] = 0
+        maxcont = np.argmax(self.contrasts)
+        self.contrasts = np.append(self.contrasts[maxcont], np.delete(self.contrasts, maxcont))
         disp = config['data']['lods']
         angle = config['data']['angles']
         self.lods = (np.array([np.sin(np.deg2rad(angle)),np.cos(np.deg2rad(angle))])*disp).T
 
         self.spectra = [(config['data']['star_spectra'], p_spec) for p_spec in config['data']['planet_spectra']]
+        dprint(self.contrasts)
 
     def __call__(self, ix, *args, **kwargs):
         return (self.contrasts[ix], self.lods[ix], self.spectra[ix])
@@ -594,15 +597,18 @@ def make_input(config):
 
 def make_eval():
     """ Creates a single input file with what you need for hyperparam tests for example """
-    config['data']['num_indata'] = 1
+    config['data']['num_indata'] = 3
     config['data']['test_frac'] = 1
-    config['data']['contrasts'] = [-3]
-    config['data']['angles'] = [225]
-    config['data']['lods'] = [6]
+    config['data']['contrasts'] = -3
+    config['data']['angles'] = [0,120,240]
+    config['data']['lods'] = [2,4,6]
     config['trainfiles'] = []
+    config['testfiles'] = [os.path.join(config['working_dir'], f'testfile_{id}.h5') for id in
+                           range(config['data']['num_indata'])]
+    convert_astro(config)
     make_input(config)
 
 
 if __name__ == "__main__":
-    # make_input(config)
-    make_eval()
+    make_input(config)
+    # make_eval()
