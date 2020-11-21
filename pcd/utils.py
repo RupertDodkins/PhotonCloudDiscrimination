@@ -16,14 +16,15 @@ def init_grid(rows, cols, figsize=None):
 
     return fig, axes
 
-def find_coords(rad, sep):
-    npoints = (np.deg2rad(360) * rad) / sep  # (2*np.pi*rad)/sep
+def find_coords(rad, sep, init_angle=0, fin_angle=360):
+    angular_range = fin_angle - init_angle
+    npoints = (np.deg2rad(angular_range) * rad) / sep  # (2*np.pi*rad)/sep
     ang_step = 360 / npoints  # 360/npoints
     x = []
     y = []
     for i in range(int(npoints)):
-        newx = rad * np.cos(np.deg2rad(ang_step * i))
-        newy = rad * np.sin(np.deg2rad(ang_step * i))
+        newx = rad * np.cos(np.deg2rad(ang_step * i + init_angle))
+        newy = rad * np.sin(np.deg2rad(ang_step * i + init_angle))
         x.append(newx)
         y.append(newy)
     return np.array([np.array(y), np.array(x)])

@@ -185,6 +185,39 @@ def num_input():
                 test_inds += len(hf.get('data'))
     return train_inds, test_inds
 
+def plot_snr_trends(start=0, end=-1):
+    alldata = load_meta('outputs')
+    allsteps = len(alldata)
+    start, end = get_range_inds(start, end, allsteps)
+    snrdata = np.zeros((allsteps, len(alldata[0])))
+    for step in range(start, end+1):
+        dprint(step)
+
+        snrdata[step] = alldata[step]
+        # througput, all_snr, all_signal, all_back_mean, all_back_std, app_snr, app_signal, app_std = alldata[step]
+    metric_types = ['througput', 'all_snr', 'all_signal', 'all_back_mean', 'all_back_std', 'app_snr', 'app_signal',
+                    'app_std']
+    axes = initialize_axes(metric_types)
+    for i, (ax, metric) in enumerate(zip(axes, metric_types)):
+        ax.plot(snrdata[:,i])
+        ax.set_title(metric)
+    plt.show()
+
+def plot_fluxes(start=0, end=-1):
+    alldata = load_meta('fluxes')
+    allsteps = len(alldata)
+    start, end = get_range_inds(start, end, allsteps)
+    fluxes = np.zeros((allsteps, len(alldata[0])))
+
+    for step in range(start, end+1):
+        dprint(step)
+        # plt.plot(alldata[step], label=f'{step}')
+        fluxes[step] = alldata[step]
+    plt.imshow(fluxes, aspect='auto')
+    plt.legend()
+    plt.show()
+
+
 def onetime_metric_streams(start=0, end=10):
     """
     Shows metrics as a function of training steps
@@ -317,32 +350,13 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
         visualiser.update(step, trainbool, images, norm=None, extent=[-1,1,-1,1])
     plt.show(block=True)
 
-def pt_step(input_data, input_label, pred_val, loss, train=True, verbose=True):
-    if not config['train']['roc_probabilities']:
-        pred_val = np.argmax(pred_val, axis=-1)
-
-    with open(config['train']['pt_outputs'], 'ab') as handle:
-        field_tup = (input_label, pred_val, input_data, loss, train)
-        pickle.dump(field_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    if verbose:
-        if config['train']['roc_probabilities']:
-            pred_val = np.argmax(pred_val, axis=-1)
-
-        pos = input_label == 1
-        neg = input_label == 0
-
-        true_pos = int(np.sum(np.logical_and(pos, np.round(pred_val) == 1)))
-        false_pos = int(np.sum(np.logical_and(neg, np.round(pred_val) == 1)))
-        true_neg = int(np.sum(np.logical_and(neg, np.round(pred_val) == 0)))
-        false_neg = int(np.sum(np.logical_and(pos, np.round(pred_val) == 0)))
-        conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
-        print(conf)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
-    onetime_metric_streams(end = -1)
-    metric_tesseracts(start = 0, end = -1, jump=1)
+    plot_fluxes()
+    plot_snr_trends()
+    # onetime_metric_streams(end = -1)
+    # metric_tesseracts(start = 0, end = -1, jump=1)
 

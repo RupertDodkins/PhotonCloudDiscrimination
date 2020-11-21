@@ -13,8 +13,8 @@ from examples.minkunet import MinkUNet34C, MinkUNet14A
 # from examples.unet import UNet
 
 from pcd.config.config import config
-from pcd.visualization import pt_step
 from pcd.input import load_dataset
+from pcd.article_plots import pt_step
 
 if os.path.exists(config['train']['pt_outputs']):
     os.remove(config['train']['pt_outputs'])
@@ -72,7 +72,7 @@ def train(verbose=True):
             optimizer.zero_grad()
 
             # Get new data
-            coords, labels = load_dataset(config['trainfiles'][i])
+            coords, labels, astro_dict = load_dataset(config['trainfiles'][i])
             input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
             # Forward
@@ -82,7 +82,8 @@ def train(verbose=True):
             loss = criterion(output.F, labels_pt)
 
             # if i % 5 == 0:
-            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=True, verbose=verbose)
+            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), astro_dict=astro_dict,
+                    train=True, verbose=verbose)
 
             # Gradient
             loss.backward()

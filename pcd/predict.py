@@ -22,7 +22,8 @@ from examples.minkunet import MinkUNet14A
 from pcd.config.config import config
 from pcd.input import load_dataset
 from pcd.train import reform_input
-from pcd.visualization import pt_step, metric_tesseracts
+from pcd.visualization import metric_tesseracts
+from pcd.article_plots import pt_step
 
 
 def predict():
@@ -32,14 +33,14 @@ def predict():
     net = net.to(device)
     print(f"loading NN from {config['savepath']}")
     net.load_state_dict(torch.load(config['savepath']))
-    net.eval()
+    # net.eval()
 
     # evalfiles = np.append(config['trainfiles'], config['testfiles'])
     evalfiles = config['testfiles']
 
     # for evalfile in config['mec']['glados_inputfiles']:
     for evalfile in evalfiles:
-        coords, labels = load_dataset(evalfile)
+        coords, labels, astro_dict = load_dataset(evalfile)
         input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
         with torch.no_grad():
@@ -49,7 +50,7 @@ def predict():
         # pred = pred.cpu().numpy()
         pred = output.F.cpu().detach().numpy()
 
-        pt_step(coords, np.int_(labels), pred, -1, train=False)
+        pt_step(coords, np.int_(labels), pred, -1, astro_dict=astro_dict, train=False)
 
 if __name__ == '__main__':
     predict()

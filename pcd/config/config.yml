@@ -2,7 +2,7 @@
 
 debug: True
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 201028/]  # concat DIR with that suffix and store as WDIR
+working_dir: &WDIR !join [*DIR, 201115/]  # concat DIR with that suffix and store as WDIR
 overwrite_cache: False
 pointnet_version: 2
 num_point: &PN 200000  #  # 131072 262144
@@ -11,25 +11,26 @@ testfiles: !join [*WDIR, 'testfile_{id}.h5']
 dimensions: 4
 task: sem_seg
 classes: 2  # star=0, planet=1
-pre_adi: True
+pre_adi: False
 model: minkowski  # minkowski  # lightgbm  #
 savepath: !join [*WDIR, 'test95.pth']
 
 data:
-  num_indata: 10  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
+  num_indata: 1 #20  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
   null_frac: 0.  # num of input data that are null (no planet photons)
-  test_frac: 0.1
-  aug_ratio: 9  # For every 1 medis input duplicate and rotate it {aug_ratio} times
+  test_frac: 0 #0.05
+  aug_ratio: 19  # For every 1 medis input duplicate and rotate it {aug_ratio} times
   medis_config: "medis_params.py"
-  angles: 315  #(0,360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
-  lods: 4 #,2,3,5,3]
-  contrasts: -3 #(-4,-2) #,-2,-2,-2,-2]
+  angles: (0,360)  #(0,360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
+  lods: (2,7) #,2,3,5,3]
+  contrasts: (-4,-2) #(-4,-2) #,-2,-2,-2,-2]
   star_spectra: 6000
   planet_spectra: 1000 #(500,2000) #,3000,3000,3000,3000] # length(num_indata) + 1
   time_diff: False
   quantize: True
   batch_coords: True
   rot_rate: 3  # deg/min
+  fwhm: 10
 
 train:
   gpu: 1
@@ -41,6 +42,7 @@ train:
   data_dir: *WDIR
   outputs: !join [*WDIR, outputs.pkl]
   pt_outputs: !join [*WDIR, pt_outputs.pkl]
+  fluxes: !join [*WDIR, fluxes.pkl]
   learning_rate: 0.0001  # 1e-5   todo use
   cache_freq: 10  # todo use
   roc_probabilities: False

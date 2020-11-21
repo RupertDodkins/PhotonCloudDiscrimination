@@ -95,7 +95,8 @@ class MedisObs():
         assert ratio <= 1
         planet_inds = range(len(self.photons[1]))
         del_planet_inds = np.sort(random.sample(list(planet_inds), int(len(planet_inds) * (1-ratio))))
-        self.photons[1] = np.delete(self.photons[1], del_planet_inds, axis=0)
+        if len(del_planet_inds)>0:
+            self.photons[1] = np.delete(self.photons[1], del_planet_inds, axis=0)
 
         # location changes
         planet_photons = self.photons[1]
@@ -119,7 +120,7 @@ class MedisObs():
         dist = Distribution(spectrum, interpolation=interp)
 
         phot_spec = dist(len(planet_photons))[0]
-        planet_photons[:, 1] = phot_spec*150/np.max(phot_spec) - 150
+        planet_photons[:, 1] = phot_spec*mp.array_size[0]/np.max(phot_spec) - mp.array_size[0]
 
         self.photons[1] = planet_photons
 
@@ -127,11 +128,11 @@ class MedisObs():
         fig, axes = utils.init_grid(rows=self.numobj, cols=4, figsize=(16,4*self.numobj))
 
         if config['mec']['dithered']:
-            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-150, 0, 50),
-                    np.linspace(self.photons[0][:,2].min(), self.photons[0][:,2].max(), 150),
-                    np.linspace(self.photons[0][:,3].min(), self.photons[0][:,3].max(), 150)]
+            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-mp.array_size[0], 0, 50),
+                    np.linspace(self.photons[0][:,2].min(), self.photons[0][:,2].max(), mp.array_size[0]),
+                    np.linspace(self.photons[0][:,3].min(), self.photons[0][:,3].max(), mp.array_size[0])]
         else:
-            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-150, 0, 50), range(mp.array_size[0]),
+            bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-mp.array_size[0], 0, 50), range(mp.array_size[0]),
                     range(mp.array_size[1])]
 
         # if config['data']['trans_polar']:
@@ -189,7 +190,7 @@ class Reform():
         # normalise photons
         if use_bounds:
             bounds = np.array([[0, sp.sample_time * sp.numframes],
-                               mp.wavecal_coeffs[0] * ap.wvl_range + mp.wavecal_coeffs[1],  # [-116, 0], ap.wvl_range = np.array([800, 1500]), mp.wavecal_coeffs = [1. / 6, -250]
+                               mp.wavecal_coeffs[0] * ap.wvl_range + mp.wavecal_coeffs[1],  # [-116, 0], ap.wvl_range = np.array([800, mp.array_size[0]0]), mp.wavecal_coeffs = [1. / 6, -250]
                                [0, mp.array_size[0]],
                                [0, mp.array_size[1]]])
             # if config['data']['trans_polar']:
@@ -301,7 +302,7 @@ class NnReform(Reform):
         planet_photons = self.chunked_photons[0,planet_inds]
         angles = np.deg2rad((planet_photons[:,0]+1) * 0.5 * sp.numframes * sp.sample_time * config['data']['rot_rate']/60)
         yc, xc = np.mean(planet_photons[:,2]), np.mean(planet_photons[:,3])
-        rad_offset = astro[1] * 2 * 10 / 150
+        rad_offset = astro[1] * 2 * 10 / mp.array_size[0]
         planet_photons[:,3] += -xc + rad_offset[1]
         planet_photons[:,2] += -yc + rad_offset[0]
         x_rot = planet_photons[:,3] * np.cos(angles) - planet_photons[:,2] * np.sin(angles)
@@ -345,7 +346,7 @@ class NnReform(Reform):
         else:
             radius = 1.5
             bins = [np.linspace(-radius,radius,50), np.linspace(-radius,radius,50), 
-                    np.linspace(-radius,radius,150), np.linspace(-radius,radius,150)]
+                    np.linspace(-radius,radius,mp.array_size[0]), np.linspace(-radius,radius,mp.array_size[0])]
 
         coord = 'tpxy'
 
@@ -420,7 +421,7 @@ class DtReform(Reform):
             if rad % 10 == 0:
                 print(f'locating planets at rad {rad}')
             centered_coords = utils.find_coords(rad, dists)
-            annuli_coords = np.array([centered_coords[i] + 75 for i in range(2)]).astype(int)
+            annuli_coords = np.array([centered_coords[i] + mp.array_size[0]//2 for i in range(2)]).astype(int)
 
             all_times = np.empty(0)
             all_dts = np.empty(0)
@@ -442,6 +443,17 @@ class DtReform(Reform):
             all_dts = all_dts[sort_ind]
             all_ids = all_ids[sort_ind]
             all_exo = all_exo[sort_ind]
+
+            # todo run this on the timestreams
+            # https://stackoverflow.com/questions/33650371/recurrence-plot-in-python
+            # from scipy.spatial.distance import pdist, squareform
+            #
+            # def rec_plot(s, eps=0.1, steps=10):
+            #     d = pdist(s[:, None])
+            #     d = np.floor(d / eps)
+            #     d[d > steps] = steps
+            #     Z = squareform(d)
+            #     return Z
 
             # sma = np.convolve(all_dts, np.ones((N,)) / N, mode='same')
             sma = convolve2d(all_dts[:,np.newaxis], np.ones((N,))[:,np.newaxis] / N, mode='same', boundary='wrap')
@@ -491,7 +503,7 @@ class DtReform(Reform):
         planet_df = self.df.loc[self.df['bfadi_exo'] == 1]
 
         if plot_dict['out_map']:
-            bins = [np.arange(150)] * 2
+            bins = [np.arange(mp.array_size[0])] * 2
             metric_inds = get_metric_distributions(self.df['exo'].values.astype(int),
                                                     self.df['bfadi_exo'].values.astype(int),
                                                     sum=False)
@@ -534,28 +546,35 @@ class MedisParams():
     def __call__(self, ix, *args, **kwargs):
         return (self.contrasts[ix], self.lods[ix], self.spectra[ix])
 
-def load_h5(h5_filename):
-    f = h5py.File(h5_filename)
-    data = f['data'][:]
-    label = f['label'][:]
-    smpw = f['smpw'][:]
-    try:
-        print(f"contrast: {np.log10(f.attrs['contrast'])}, loc: {f.attrs['loc']}, spec temp: {f.attrs['spec']}")
-    except KeyError:
-        print('no astro info known')
+def load_h5(h5_filename, full_output=False):
+    print(h5_filename)
+    with h5py.File(h5_filename, 'r') as f:
+        data = f['data'][:]
+        label = f['label'][:]
+        smpw = f['smpw'][:]
+        try:
+            contrast = f.attrs['contrast']
+            loc = f.attrs['loc']
+            spec = f.attrs['spec']
+            print(f"contrast: {np.log10(contrast)}, loc: {loc}, spec temp: {spec}")
+        except KeyError:
+            print('no astro info known')
 
-    return (data, label, smpw)
+    if full_output:
+        return data, label, smpw, {'contrast': contrast, 'loc': loc, 'spec': spec}
+    else:
+        return (data, label, smpw)
 
 def load_dataset(in_file, shuffle=False):
     assert os.path.isfile(in_file), f'[error] {in_file} dataset path not found'
 
     print(f'loading {in_file}')
-    in_data, in_label, class_weights = load_h5(in_file)
+    in_data, in_label, class_weights, astro_dict = load_h5(in_file, full_output=True)
 
     if shuffle:
         raise NotImplementedError
 
-    return in_data, in_label
+    return in_data, in_label, astro_dict
 
 def make_input(config):
     mp = MedisParams(config)

@@ -11,13 +11,14 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 from vip_hci import pca
 from vip_hci.medsub import medsub_source
-from vip_hci.metrics import contrcurve, aperture_flux, noise_per_annulus
+from vip_hci.metrics import contrcurve, aperture_flux, noise_per_annulus, snrmap, snr
 from vip_hci.preproc import cube_derotate
-from medis.params import ap, sp, mp, tp
 from medis.plot_tools import grid
 
 from visualization import load_meta, get_metric_distributions, confusion_matrix
+from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
+from pcd.input import load_h5
 import utils
 
 home = os.path.expanduser("~")
@@ -27,22 +28,9 @@ home = os.path.expanduser("~")
 def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True, verbose=False):
     """ Looks for reduced images file in the home folder and returns if it exists. If you're on the local machine
     and the file has not been transferred it will throw a FileNotFoundError """
-    # if home == '/Users/dodkins':
-    #     filename = os.path.join(home, 'reduced_images.pkl')
-    #     if os.path.exists(filename):
-    #         with open(filename, 'rb') as handle:
-    #             reduced_images = pickle.load(handle)
-    #     else:
-    #         print('No file found. Need to create transfer')
-    #         raise FileNotFoundError
-    # elif home == '/home/dodkins':
-    #     filename = os.path.join(home, 'reduced_images.pkl')
-    #     if os.path.exists(filename):
-    #         with open(filename, 'rb') as handle:
-    #             reduced_images = pickle.load(handle)
-    #     else:
 
-    all_tess, star_tess, planet_tess = get_tess(ind=ind)
+    all_photons, star_photons, planet_photons = get_photons(amount=-ind)
+    all_tess, star_tess, planet_tess = (get_tess(photons) for photons in [all_photons, star_photons, planet_photons])
 
     all_tess = np.transpose(all_tess, axes=(1,0,2,3))
     star_tess = np.transpose(star_tess, axes=(1,0,2,3))
@@ -54,25 +42,24 @@ def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True, verbose=F
 
     angle_list = -np.linspace(0, sp.numframes * sp.sample_time * config['data']['rot_rate']/60, all_tess.shape[1])
 
-
     if use_spec:
         wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], all_tess.shape[0])
         scale_list = wsamples / (ap.wvl_range[1] - ap.wvl_range[0])
 
         all_pca = pca.pca(all_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum', verbose=verbose)
+                        adimsdi='double', ncomp=(None,1), collapse='sum', verbose=verbose)
 
-        star_pca = pca.pca(star_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum', verbose=verbose)
+        # star_pca = pca.pca(star_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
+        #                 adimsdi='double', ncomp=(None,1), collapse='sum', verbose=verbose)
 
         planet_pca = pca.pca(planet_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-                        adimsdi='double', ncomp=None, ncomp2=1, collapse='sum', verbose=verbose)
+                        adimsdi='double', ncomp=(None,1), collapse='sum', verbose=verbose)
         # reduced_images = np.array([[all_raw, star_raw, planet_raw], [all_pca, star_pca, planet_pca]])
 
 
-        # all_med = medsub_source.median_sub(all_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
-        # star_med = medsub_source.median_sub(star_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
-        # planet_med = medsub_source.median_sub(planet_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
+        all_med = medsub_source.median_sub(all_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
+        star_med = medsub_source.median_sub(star_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
+        planet_med = medsub_source.median_sub(planet_tess, angle_list=angle_list, scale_list=scale_list, collapse='sum')
 
     else:
         pass
@@ -85,14 +72,40 @@ def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True, verbose=F
     star_derot = np.sum(cube_derotate(np.sum(star_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
     planet_derot = np.sum(cube_derotate(np.sum(planet_tess, axis=0), angle_list, imlib='opencv', interpolation='lanczos4'), axis=0)
 
-    reduced_images = np.array([[all_derot, star_derot, planet_derot], [all_pca, star_pca, planet_pca]])#, [all_med, star_med, planet_med]])
-    # reduced_images = np.array([[all_raw, star_raw, planet_raw]])
+    # all_snr = snrmap(all_pca, fwhm=5, plot=True)
+    # star_snr = snrmap(star_pca, fwhm=5, plot=True)
+    # planet_snr = snrmap(planet_pca, fwhm=5, plot=True)
+
+    # reduced_images = np.array([[all_derot, star_derot, planet_derot],
+    #                            [all_pca, star_pca, planet_pca],
+    #                            [all_snr, star_snr, planet_snr]])#, [all_med, star_med, planet_med]])
+
+    planet_loc = (92,60)
+    fwhm =  config['data']['fwhm']
+    nproc = 8
+
+    # reduced_images = np.array([[all_med, snrmap(all_med, fwhm, known_sources=planet_loc, nproc=nproc)],
+    #                            [all_pca, snrmap(all_pca, fwhm, known_sources=planet_loc,  nproc=nproc)],
+    #                            [planet_derot, snrmap(planet_derot, fwhm, known_sources=planet_loc, nproc=nproc)],
+    #                            [planet_pca, snrmap(planet_pca, fwhm, known_sources=planet_loc,  nproc=nproc)]])
+    # plt.imshow(planet_derot)
+    # plt.imshow(snrmap(planet_derot, fwhm, nproc=nproc))
+    # plt.show()
+    reduced_images = np.array([[all_raw, star_raw, planet_raw]])
 
     # grid(reduced_images, logZ=True, vlim=(1,50))  #, vlim=(1,70)
     if plot:
-        grid(reduced_images, vlim=(-9,40))  #, vlim=(1,70)
+        grid(reduced_images, vlim=(-10,106))
 
     return reduced_images
+
+def get_angle_list(tess):
+    angle_list = -np.linspace(0, sp.numframes * sp.sample_time * config['data']['rot_rate']/60, tess.shape[0])
+    return angle_list
+
+def derot_tess(tess):
+    derot = np.sum(cube_derotate(np.sum(tess, axis=1), get_angle_list(tess)), axis=0)
+    return derot
 
 def plot_reduced_images(ind=-1):
     reduced_images = np.array(get_reduced_images(ind=ind))
@@ -130,8 +143,8 @@ def plot_3D_pointclouds():
     del alldata
 
     cur_data[:,0] = (cur_data[:,0] + 200) * 30/400
-    cur_data[:,2] = (cur_data[:,2] + 200) * 150/400
-    cur_data[:,3] = (cur_data[:,3] + 200) * 150/400
+    cur_data[:,2] = (cur_data[:,2] + 200) * mp.array_size[0]/400
+    cur_data[:,3] = (cur_data[:,3] + 200) * mp.array_size[0]/400
 
     true_pos, false_neg, false_pos, true_neg = get_metric_distributions(cur_seg, pred_seg_res, sum=True)
 
@@ -221,8 +234,8 @@ def get_photons(amount=1):
 
     return all_photons, star_photons, planet_photons
 
-def get_tess(ind=-1):
-    all_photons, star_photons, planet_photons = get_photons(amount=-ind)
+def get_tess(photonlist):
+    # all_photons, star_photons, planet_photons = get_photons(amount=-ind)
 
     # all_photons, star_photons, planet_photons = all_photons[:,:-1], star_photons[:,:-1], planet_photons[:,:-1]
     # if config['data']['trans_polar']:
@@ -230,19 +243,15 @@ def get_tess(ind=-1):
 
     # bins = [np.linspace(-1, 1, sp.numframes + 1), np.linspace(-1, 1, ap.n_wvl_final + 1),
     #         np.linspace(-1, 1, mp.array_size[0]), np.linspace(-1, 1, mp.array_size[1])]
-    # bins = [150] * 4
-    bins = [np.linspace(all_photons[:,0].min(), all_photons[:,0].max(), sp.numframes + 1),
-            np.linspace(all_photons[:,1].min(), all_photons[:,1].max(), ap.n_wvl_final + 1),
+    # bins = [mp.array_size[0]] * 4
+    bins = [np.linspace(photonlist[:,0].min(), photonlist[:,0].max(), sp.numframes + 1),
+            np.linspace(photonlist[:,1].min(), photonlist[:,1].max(), ap.n_wvl_final + 1),
             np.linspace(-200, 200, 151),
             np.linspace(-200, 200, 151)]
 
-    all_tess, edges = np.histogramdd(all_photons, bins=bins)
+    tess, _ = np.histogramdd(photonlist, bins=bins)
 
-    star_tess, edges = np.histogramdd(star_photons, bins=bins)
-
-    planet_tess, edges = np.histogramdd(planet_photons, bins=bins)
-
-    return all_tess, star_tess, planet_tess
+    return tess
 
 def ROC_curve():
     amount = -1
@@ -282,9 +291,9 @@ def contrast_curve():
     thrus = np.zeros((4,5,3))  # 4 conts, 5 rad, 3 types
     r = range(73)
     stds = np.zeros((1,len(r),3))
-    fwhm = 5 #8.5
+    fwhm =  config['data']['fwhm']
     planet_locs = np.array([[39,36],[46,44],[53,51],[60,59],[66,65]])
-    loc_rads = np.sqrt(np.sum((75-planet_locs)**2, axis=1))
+    loc_rads = np.sqrt(np.sum((mp.array_size[0]//2-planet_locs)**2, axis=1))
 
     imlistsfile = 'imlists.npy'
     if os.path.exists(imlistsfile):
@@ -394,15 +403,35 @@ def contrast_curve():
         # grid(imlist, logZ=True, vlim=(1,60), show=False)
     # plt.show(block=True)
 
+def rad_snr():
+    """ image processing and snr calc for paper train data tests """
+
+    fwhm =  config['data']['fwhm']
+    # nproc = 8
+    snrs = np.zeros(1)
+    for i in range(1):
+        planet_photons = get_photons(amount=-i)
+        planet_tess = get_tess(planet_photons)
+        if not planet_tess.max() == 0:
+            _, astro_dict = load_h5(config['testfiles'][-i], full_output=True)
+            angle_list = -np.linspace(0, sp.numframes * sp.sample_time * config['data']['rot_rate'] / 60, planet_tess.shape[1])
+            planet_derot = np.sum(cube_derotate(np.sum(planet_tess, axis=0), angle_list), axis=0)
+            planet_loc = astro_dict['loc'].astype('int')
+            # planet_loc = (planet_loc[0].item(), planet_loc[1].item())
+            # snrs[i] = snr(planet_derot, planet_loc, fwhm, plot=False, verbose=True)
+            # snrmap(planet_derot, fwhm, nproc=nproc, plot=True)
+            snrs[i] = all_snr_loc(planet_derot, planet_loc, fwhm)
+    print('snrs', snrs)
+    return snrs.mean()
 
 def rad_cont():
     """  """
-    fwhm = 5
+    fwhm =  config['data']['fwhm']
     hwhm = fwhm/2
-    image_width = 150
+    image_width = mp.array_size[0]
     alldata = load_meta(kind='pt_outputs')
     for i in range(3):
-        cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-1]
+        cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-i]
         # del alldata
 
         metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
@@ -438,10 +467,113 @@ def rad_cont():
         cont = std*5/(throughput*tot_neg)
         return cont
 
+def all_snr_loc(array, source_xy, fwhm, verbose=True, full_output=False):
+    """
+    homemade func for snr that differs from vips to account for jumps in number of apertures
+
+    :param array:
+    :param source_xy:
+    :param fwhm:
+    :param verbose:
+    :param full_output:
+    :return:
+    """
+    rad = np.sqrt(np.sum(source_xy**2))
+    centered_coords = np.array([[],[]])
+
+    for r in range(fwhm):
+        centered_coords = np.concatenate((centered_coords, utils.find_coords(rad-fwhm/2+r+0.5, 1)), axis=1)
+
+    centered_coords = np.round(centered_coords).astype(int)
+    offset = centered_coords - source_xy[:, np.newaxis]
+
+    annuli_coords = centered_coords + mp.array_size[0]//2
+    annuli_coords = np.delete(annuli_coords, np.where(np.sqrt(np.sum(offset ** 2, axis=0)) <= (fwhm/2)+4), axis=1)
+    # todo delete on confirmation
+    # testmap = np.zeros_like(array)
+    # testmap[annuli_coords[0],annuli_coords[1]] = array[annuli_coords[0],annuli_coords[1]]
+    # plt.ion()
+    # _, ax = plt.subplots(figsize=(6, 6))
+    # ax.imshow(testmap, origin='lower')
+    # plt.show(block=True)
+    fluxes = array[annuli_coords[0],annuli_coords[1]]
+    f_source = aperture_flux(array, [source_xy[0]+mp.array_size[0]//2], [source_xy[1]+mp.array_size[1]//2], fwhm)[0]
+    snr_value = (f_source-fluxes.mean())/fluxes.std()
+
+    if verbose:
+        msg1 = 'S/N for the given pixel = {:.3f}'
+        msg2 = 'Integrated flux in FWHM test aperture = {:.3f}'
+        msg3 = 'Mean of background apertures integrated fluxes = {:.3f}'
+        msg4 = 'Std-dev of background apertures integrated fluxes = {:.3f}'
+        print(msg1.format(snr_value))
+        print(msg2.format(f_source))
+        print(msg3.format(fluxes.mean()))
+        print(msg4.format(fluxes.std()))
+
+    if full_output:
+        return (snr_value, f_source, fluxes.mean(), fluxes.std(), fluxes)
+    else:
+        return snr_value
+
+def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, verbose=True, calc_snr=True, plot=False):
+    if not config['train']['roc_probabilities']:
+        pred_val = np.argmax(pred_val, axis=-1)
+
+    with open(config['train']['pt_outputs'], 'ab') as handle:
+        field_tup = (input_label, pred_val, input_data, loss, train)
+        pickle.dump(field_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    if verbose:
+        if config['train']['roc_probabilities']:
+            pred_val = np.argmax(pred_val, axis=-1)
+
+        metrics = get_metric_distributions(input_label, pred_val, sum=False)
+        true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
+        conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
+        print(conf)
+
+        if calc_snr:
+            planet_photons = np.concatenate((input_data[metrics[0]], input_data[metrics[2]]), axis=0)
+            planet_tess = get_tess(planet_photons)
+            planet_derot = derot_tess(planet_tess)
+            planet_loc = astro_dict['loc'].astype('int') + mp.array_size//2
+            print('planet_loc: ', planet_loc)
+            zoomim = planet_derot[planet_loc[0]-5:planet_loc[0]+5, planet_loc[1]-5:planet_loc[1]+5]
+            correction = np.array(np.unravel_index(np.argmax(zoomim), zoomim.shape)) - np.array([5,5])
+            print(correction)
+            planet_loc += correction
+            tot_pos = true_pos + false_neg
+            print('throughput: ', true_pos / tot_pos)
+            print('planet_loc: ', planet_loc)
+            all_snr, all_signal, all_back_mean, all_back_std, fluxes = all_snr_loc(planet_derot,
+                                                                           planet_loc - mp.array_size//2,
+                                                                           config['data']['fwhm'], verbose=True,
+                                                                           full_output=True)
+            _, _, app_signal, app_std, app_snr = snr(planet_derot, (planet_loc[1].item(), planet_loc[0].item()),
+                                                     config['data']['fwhm'], verbose=True, full_output=True)
+            with open(config['train']['outputs'], 'ab') as handle:
+                snr_tup = (true_pos / tot_pos, all_snr, all_signal, all_back_mean, all_back_std, app_snr, app_signal,
+                           app_std)
+                pickle.dump(snr_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(config['train']['fluxes'], 'ab') as handle:
+                print(len(fluxes), 'lenfluxes')
+                pickle.dump((planet_derot, fluxes), handle, protocol=pickle.HIGHEST_PROTOCOL)
+            if plot:
+                fig = plt.figure(figsize=(12,6))
+                ax = fig.add_subplot(121)
+                pcm = ax.imshow(planet_derot, origin='lower')
+                fig.colorbar(pcm, ax=ax)
+                aper = plt.Circle(planet_loc[::-1], radius=config['data']['fwhm'] / 2., color='r', fill=False, alpha=0.8)
+                ax.add_patch(aper)
+                ax = fig.add_subplot(122)
+                snrimage = snrmap(planet_derot, fwhm=config['data']['fwhm'], nproc=8)
+                pcm=ax.imshow(snrimage, origin='lower')
+                fig.colorbar(pcm, ax=ax)
+                plt.show()
+
 if __name__ == '__main__':
-    get_reduced_images(ind=-8, plot=True)
+    get_reduced_images(ind=-1, plot=True)
     # plot_3D_pointclouds()
     # ROC_curve()
     # view_reduced()
-    contrast_curve()
-
+    # contrast_curve()
