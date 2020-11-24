@@ -196,7 +196,7 @@ def plot_snr_trends(start=0, end=-1):
         snrdata[step] = alldata[step]
         # througput, all_snr, all_signal, all_back_mean, all_back_std, app_snr, app_signal, app_std = alldata[step]
     metric_types = ['througput', 'all_snr', 'all_signal', 'all_back_mean', 'all_back_std', 'app_snr', 'app_signal',
-                    'app_std']
+                    'app_mean', 'app_std']
     axes = initialize_axes(metric_types)
     for i, (ax, metric) in enumerate(zip(axes, metric_types)):
         ax.plot(snrdata[:,i])
@@ -207,14 +207,18 @@ def plot_fluxes(start=0, end=-1):
     alldata = load_meta('fluxes')
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
-    fluxes = np.zeros((allsteps, len(alldata[0])))
+    images = []
 
     for step in range(start, end+1):
-        dprint(step)
-        # plt.plot(alldata[step], label=f'{step}')
-        fluxes[step] = alldata[step]
-    plt.imshow(fluxes, aspect='auto')
+        plt.plot(alldata[step][1], label=f'{step}')
+        images.append(alldata[step][0])
+
     plt.legend()
+    fig, axes = utils.init_grid(rows=5, cols=5, figsize=(16,8))
+    axes = axes.flatten()
+    for im, image in enumerate(images[::4]):
+        axes[im].imshow(image, origin='lower')
+    plt.tight_layout()
     plt.show()
 
 

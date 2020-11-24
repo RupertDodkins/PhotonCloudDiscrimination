@@ -497,7 +497,8 @@ def all_snr_loc(array, source_xy, fwhm, verbose=True, full_output=False):
     # ax.imshow(testmap, origin='lower')
     # plt.show(block=True)
     fluxes = array[annuli_coords[0],annuli_coords[1]]
-    f_source = aperture_flux(array, [source_xy[0]+mp.array_size[0]//2], [source_xy[1]+mp.array_size[1]//2], fwhm)[0]
+    app_pix = np.pi*(fwhm/2)**2
+    f_source = aperture_flux(array, [source_xy[0]+mp.array_size[0]//2], [source_xy[1]+mp.array_size[1]//2], fwhm)[0]/app_pix
     snr_value = (f_source-fluxes.mean())/fluxes.std()
 
     if verbose:
@@ -549,11 +550,11 @@ def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, ver
                                                                            planet_loc - mp.array_size//2,
                                                                            config['data']['fwhm'], verbose=True,
                                                                            full_output=True)
-            _, _, app_signal, app_std, app_snr = snr(planet_derot, (planet_loc[1].item(), planet_loc[0].item()),
+            _, _, app_signal, app_std, app_mean, app_snr = snr(planet_derot, (planet_loc[1].item(), planet_loc[0].item()),
                                                      config['data']['fwhm'], verbose=True, full_output=True)
             with open(config['train']['outputs'], 'ab') as handle:
                 snr_tup = (true_pos / tot_pos, all_snr, all_signal, all_back_mean, all_back_std, app_snr, app_signal,
-                           app_std)
+                           app_mean, app_std)
                 pickle.dump(snr_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
             with open(config['train']['fluxes'], 'ab') as handle:
                 print(len(fluxes), 'lenfluxes')
