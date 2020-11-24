@@ -171,7 +171,7 @@ def plot_fluxes(start=0, end=-1):
     plt.tight_layout()
     plt.show()
 
-def bin_measure_trends(start=0, end=10):
+def metric_trends(start=0, end=10):
     """
     Shows metrics as a function of training steps
 
@@ -243,8 +243,6 @@ def bin_measure_trends(start=0, end=10):
 
     plt.show(block=True)
 
-
-
 def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     """ Shows the net predictions on the cloud as a series of 2d histograms in 4x4 grid of form
      ___________________________
@@ -306,6 +304,6 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
 
-    bin_measure_trends(end = -1)
+    metric_trends(end = -1)
     # metric_tesseracts(start = 0, end = -1, jump=1)
 
