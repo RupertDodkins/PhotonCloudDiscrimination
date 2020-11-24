@@ -98,7 +98,7 @@ def test(net, device, criterion, verbose):
     net.eval()
     with torch.no_grad():
         for i in range(int(config['data']['num_indata'] * config['data']['test_frac'])):
-            coords, labels = load_dataset(config['testfiles'][i])
+            coords, labels, astro_dict = load_dataset(config['testfiles'][i])
             input_pt, labels_pt, coords, _, labels = reform_input(coords, labels, device)
 
             output = net(input_pt)
@@ -106,7 +106,8 @@ def test(net, device, criterion, verbose):
             loss = criterion(output.F, labels_pt)
 
             # if i % 10 == 0:
-            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), train=False, verbose=True)
+            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), astro_dict, train=False,
+                    verbose=verbose)
 
 if __name__ == '__main__':
     train()
