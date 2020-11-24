@@ -22,7 +22,7 @@ from medis.distribution import planck, Distribution
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config, convert_astro, convert_inputfiles
 import utils
-from visualization import confusion_matrix, get_metric_distributions
+from utils import confusion_matrix, get_metric_distributions
 
 
 class MedisObs():

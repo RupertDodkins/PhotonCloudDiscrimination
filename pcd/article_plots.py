@@ -8,18 +8,17 @@ import matplotlib.pylab as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.mplot3d import Axes3D  # don't listen to pycharm this is necessary
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline
 from vip_hci import pca
 from vip_hci.medsub import medsub_source
 from vip_hci.metrics import contrcurve, aperture_flux, noise_per_annulus, snrmap, snr
 from vip_hci.preproc import cube_derotate
 from medis.plot_tools import grid
 
-from visualization import load_meta, get_metric_distributions, confusion_matrix
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
 from pcd.input import load_h5
-import utils
+from pcd.utils import load_meta, get_metric_distributions, confusion_matrix
+from pcd.analysis import calc_snr, get_photons, get_tess, reduce_image, find_loc, pix_snr_loc
 
 home = os.path.expanduser("~")
 # sp.numframes = 100
@@ -99,14 +98,6 @@ def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True, verbose=F
 
     return reduced_images
 
-def get_angle_list(tess):
-    angle_list = -np.linspace(0, sp.numframes * sp.sample_time * config['data']['rot_rate']/60, tess.shape[0])
-    return angle_list
-
-def derot_tess(tess):
-    derot = np.sum(cube_derotate(np.sum(tess, axis=1), get_angle_list(tess)), axis=0)
-    return derot
-
 def plot_reduced_images(ind=-1):
     reduced_images = np.array(get_reduced_images(ind=ind))
 
@@ -139,7 +130,7 @@ def plot_reduced_images(ind=-1):
 
 def plot_3D_pointclouds():
     alldata = load_meta()
-    cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-5]
+    cur_seg, pred_seg_res, cur_data, _, trainbool, _ = alldata[-5]
     del alldata
 
     cur_data[:,0] = (cur_data[:,0] + 200) * 30/400
@@ -212,59 +203,21 @@ def plot_3D_pointclouds():
     plt.tight_layout()
     plt.show(block=True)
 
-def get_photons(amount=1):
-    print('amount = ', amount)
-    alldata = load_meta(kind='pt_outputs', amount=amount)
-    cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-amount]
-    del alldata
-
-    metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
-    true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
-    print(trainbool)
-    print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
-
-    all_photons = np.concatenate(
-        (cur_data[metrics[0]], cur_data[metrics[1]], cur_data[metrics[2]], cur_data[metrics[3]]),
-        axis=0)
-    star_photons = np.concatenate((cur_data[metrics[1]], cur_data[metrics[3]]), axis=0)
-    planet_photons = np.concatenate((cur_data[metrics[0]], cur_data[metrics[2]]), axis=0)
-
-    return all_photons, star_photons, planet_photons
-
-def get_tess(photonlist):
-    # all_photons, star_photons, planet_photons = get_photons(amount=-ind)
-
-    # all_photons, star_photons, planet_photons = all_photons[:,:-1], star_photons[:,:-1], planet_photons[:,:-1]
-    # if config['data']['trans_polar']:
-    #     for photons in [all_photons, star_photons, planet_photons]:
-
-    # bins = [np.linspace(-1, 1, sp.numframes + 1), np.linspace(-1, 1, ap.n_wvl_final + 1),
-    #         np.linspace(-1, 1, mp.array_size[0]), np.linspace(-1, 1, mp.array_size[1])]
-    # bins = [mp.array_size[0]] * 4
-    bins = [np.linspace(photonlist[:,0].min(), photonlist[:,0].max(), sp.numframes + 1),
-            np.linspace(photonlist[:,1].min(), photonlist[:,1].max(), ap.n_wvl_final + 1),
-            np.linspace(-200, 200, 151),
-            np.linspace(-200, 200, 151)]
-
-    tess, _ = np.histogramdd(photonlist, bins=bins)
-
-    return tess
-
-def ROC_curve():
-    amount = -1
-    print('amount = ', amount)
-    alldata = load_meta(kind='pt_outputs', amount=amount)
-    cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-amount]
-    del alldata
-
-    from sklearn.metrics import roc_curve, auc
-    fpr, tpr, _ = roc_curve(cur_seg,pred_seg_res[:,1])
-    roc_auc = auc(fpr, tpr)
-    plt.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.legend(loc="lower right")
-    plt.show()
+# def ROC_curve():
+#     amount = -1
+#     print('amount = ', amount)
+#     alldata = load_meta(kind='pt_outputs', amount=amount)
+#     cur_seg, pred_seg_res, cur_data, _, trainbool, _ = alldata[-amount]
+#     del alldata
+#
+#     from sklearn.metrics import roc_curve, auc
+#     fpr, tpr, _ = roc_curve(cur_seg,pred_seg_res[:,1])
+#     roc_auc = auc(fpr, tpr)
+#     plt.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
+#     plt.xlabel('False Positive Rate')
+#     plt.ylabel('True Positive Rate')
+#     plt.legend(loc="lower right")
+#     plt.show()
 
 def view_reduced():
     trios = []
@@ -301,7 +254,7 @@ def contrast_curve():
         alldata = load_meta(kind='pt_outputs')
         for ix, rev_ind in enumerate(range(1, 21, 1)): #1,21
 
-            cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-rev_ind]
+            cur_seg, pred_seg_res, cur_data, _, trainbool, _ = alldata[-rev_ind]
             metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
 
             true_star_photons = np.concatenate((cur_data[metrics[1]], cur_data[metrics[3]]), axis=0)
@@ -415,137 +368,12 @@ def rad_snr():
     print('snrs', snrs)
     return snrs.mean()
 
-def rad_cont():
-    """  """
-    fwhm =  config['data']['fwhm']
-    hwhm = fwhm/2
-    image_width = mp.array_size[0]
-    alldata = load_meta(kind='pt_outputs')
-    for i in range(3):
-        cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[-i]
-        # del alldata
-
-        metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
-        true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
-
-        tot_neg = true_neg + false_pos
-        tot_pos = true_pos + false_neg
-        print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos))
-        exo_pred = (true_pos + false_neg)/tot_pos
-        if exo_pred == 0 or exo_pred == 1:
-            cont = 1
-            return cont
-
-        throughput = true_pos/tot_pos
-
-        planet_photons = np.concatenate((cur_data[metrics[0]], cur_data[metrics[2]]), axis=0)
-
-        planet_map, _, _ = np.histogram2d(planet_photons[:, 3], planet_photons[:, 2],
-                                          bins=[np.linspace(-200, 200, image_width)] * 2)
-
-        raw_planet_location = np.mean(planet_photons[:,2:], axis=0)
-        planet_location = (raw_planet_location+200) * image_width/400
-        planet_radius = np.sqrt(np.sum(np.abs(image_width/2-planet_location)**2))
-
-        star_photons = np.concatenate((cur_data[metrics[1]], cur_data[metrics[3]]), axis=0)
-        star_map, _, _ = np.histogram2d(star_photons[:,3], star_photons[:,2], bins=[np.linspace(-200,200,image_width)]*2)
-        stds, rads = noise_per_annulus(star_map, fwhm, fwhm)
-        ann_ind = np.where((rads > planet_radius - hwhm) & (rads < planet_radius+ hwhm))[0][0]
-        std = stds[ann_ind]
-
-        print(raw_planet_location, planet_location, planet_radius, ann_ind)
-
-        cont = std*5/(throughput*tot_neg)
-        return cont
-
-def pix_snr_loc(array, source_xy, fwhm, verbose=False, full_output=False):
-    """
-    homemade func for snr that differs from vips to account for jumps in number of apertures
-
-    :param array:
-    :param source_xy:
-    :param fwhm:
-    :param verbose:
-    :param full_output:
-    :return:
-    """
-    rad = np.sqrt(np.sum(source_xy**2))
-    centered_coords = np.array([[],[]])
-
-    for r in range(fwhm):
-        centered_coords = np.concatenate((centered_coords, utils.find_coords(rad-fwhm/2+r+0.5, 1)), axis=1)
-
-    centered_coords = np.round(centered_coords).astype(int)
-    offset = centered_coords - source_xy[:, np.newaxis]
-
-    annuli_coords = centered_coords + mp.array_size[0]//2
-    annuli_coords = np.delete(annuli_coords, np.where(np.sqrt(np.sum(offset ** 2, axis=0)) <= (fwhm/2)+4), axis=1)
-
-    fluxes = array[annuli_coords[0],annuli_coords[1]]
-    app_pix = np.pi*(fwhm/2)**2
-    f_source = aperture_flux(array, [source_xy[0]+mp.array_size[0]//2], [source_xy[1]+mp.array_size[1]//2], fwhm)[0]/app_pix
-    snr_value = (f_source-fluxes.mean())/fluxes.std()
-
-    if verbose:
-        msg1 = 'S/N for the given pixel = {:.3f}'
-        msg2 = 'Integrated flux in FWHM test aperture = {:.3f}'
-        msg3 = 'Mean of background apertures integrated fluxes = {:.3f}'
-        msg4 = 'Std-dev of background apertures integrated fluxes = {:.3f}'
-        print(msg1.format(snr_value))
-        print(msg2.format(f_source))
-        print(msg3.format(fluxes.mean()))
-        print(msg4.format(fluxes.std()))
-
-    if full_output:
-        return (snr_value, f_source, fluxes.mean(), fluxes.std())
-    else:
-        return snr_value
-
-def reduce_image(photons):
-    tess = get_tess(photons)
-    derot_image = derot_tess(tess)
-    return derot_image
-
-def find_loc(astro_dict, derot_image):
-    planet_loc = astro_dict['loc'].astype('int') + mp.array_size // 2
-    zoomim = derot_image[planet_loc[0] - 5:planet_loc[0] + 5, planet_loc[1] - 5:planet_loc[1] + 5]
-    correction = np.array(np.unravel_index(np.argmax(zoomim), zoomim.shape)) - np.array([5, 5])
-    planet_loc += correction
-    return planet_loc
-
-def calc_snr(planet_photons, astro_dict, plot=False):
-    derot_image = reduce_image(planet_photons)
-    planet_loc = find_loc(astro_dict, derot_image)
-
-    print('planet_loc: ', planet_loc)
-    snr_data = pix_snr_loc(derot_image, planet_loc - mp.array_size // 2, config['data']['fwhm'], verbose=True,
-                                                                           full_output=True)
-    with open(config['train']['snr_data'], 'ab') as handle:
-        pickle.dump(snr_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(config['train']['images'], 'ab') as handle:
-        pickle.dump(derot_image, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    if plot:
-        fig = plt.figure(figsize=(12, 6))
-        ax = fig.add_subplot(121)
-        pcm = ax.imshow(derot_image, origin='lower')
-        fig.colorbar(pcm, ax=ax)
-        aper = plt.Circle(planet_loc[::-1], radius=config['data']['fwhm'] / 2., color='r', fill=False, alpha=0.8)
-        ax.add_patch(aper)
-        ax = fig.add_subplot(122)
-        snrimage = snrmap(derot_image, fwhm=config['data']['fwhm'], nproc=8)
-        pcm = ax.imshow(snrimage, origin='lower')
-        fig.colorbar(pcm, ax=ax)
-        plt.show()
-
-    return snr_data
-
-def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, verbose=True, snr=True):
+def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, verbose=True):
     if not config['train']['roc_probabilities']:
         pred_val = np.argmax(pred_val, axis=-1)
 
     with open(config['train']['pt_outputs'], 'ab') as handle:
-        field_tup = (input_label, pred_val, input_data, loss, train)
+        field_tup = (input_label, pred_val, input_data, loss, train, astro_dict)
         pickle.dump(field_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     if verbose:
@@ -558,7 +386,6 @@ def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, ver
         print(conf)
         print('throughput: ', true_pos  / (true_pos + false_neg))
 
-    if snr:
         planet_photons = np.concatenate((input_data[metrics[0]], input_data[metrics[2]]), axis=0)
         calc_snr(planet_photons, astro_dict)
 

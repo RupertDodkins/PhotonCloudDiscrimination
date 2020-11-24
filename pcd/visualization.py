@@ -11,10 +11,12 @@ import pickle
 import matplotlib.pylab as plt
 from matplotlib.colors import LogNorm
 import numpy as np
+import h5py
 from medis.utils import dprint
 from pcd.config.config import config
 import utils
-import h5py
+from utils import confusion_matrix, get_range_inds, get_metric_distributions, initialize_axes
+from pcd.analysis import calc_snr
 
 class Grid_Visualiser():
     def __init__(self, rows, cols, numsteps, row_headings=None, xtitles=None, ytitles=None, norm=None, pred=False):
@@ -104,7 +106,6 @@ class Grid_Visualiser():
 
     # plt.show(block=True)
 
-
 def load_meta(kind='pt_outputs', amount=-1):
     alldata = []
     with open(config['train'][kind], 'rb') as handle:
@@ -118,26 +119,6 @@ def load_meta(kind='pt_outputs', amount=-1):
                 break
 
     return alldata
-
-def get_metric_distributions(true_label, pred_label, sum=True):
-    true_neg = np.logical_and(true_label == 0, np.round(pred_label) == 0)  # round just in case the pred_val is in mean mode
-    true_pos = np.logical_and(true_label == 1, np.round(pred_label) == 1)
-    false_neg = np.logical_and(true_label == 1, np.round(pred_label) == 0)
-    false_pos = np.logical_and(true_label == 0, np.round(pred_label) == 1)
-
-    metrics = [true_pos, false_neg, false_pos, true_neg]
-
-    if sum:
-        metrics = [int(np.sum(metric)) for metric in metrics]
-
-    return metrics
-
-def initialize_axes(metric_types):
-    fig, axes = utils.init_grid(rows=2, cols=int(np.ceil(len(metric_types)/2)), figsize=(16, 9))
-    axes = axes.flatten()
-    for ax, metric_type in zip(axes, metric_types):
-        ax.set_title(metric_type)
-    return axes
 
 def initialize_metrics(metric_types):
     values = [np.empty(0)]*len(metric_types)
@@ -186,9 +167,11 @@ def num_input():
     return train_inds, test_inds
 
 def plot_snr_trends(start=0, end=-1):
+    print('todo: calculate trends using calc_snr after loading')
+    raise NotImplementedError
     alldata = load_meta('snr_data')
     allsteps = len(alldata)
-    start, end = get_range_inds(start, end, allsteps)
+    start, end = utils.get_range_inds(start, end, allsteps)
     snrdata = np.zeros((allsteps, len(alldata[0])))
     for step in range(start, end+1):
         dprint(step)
@@ -203,9 +186,11 @@ def plot_snr_trends(start=0, end=-1):
     plt.show()
 
 def plot_fluxes(start=0, end=-1):
+    print('todo: calculate images using calc_snr after loading')
+    raise NotImplementedError
     alldata = load_meta('images')
     allsteps = len(alldata)
-    start, end = get_range_inds(start, end, allsteps)
+    start, end = utils.get_range_inds(start, end, allsteps)
     images = []
 
     for step in range(start, end+1):
@@ -234,7 +219,7 @@ def onetime_metric_streams(start=0, end=10):
     num_train, num_test = num_input()
     alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
-    start, end = get_range_inds(start, end, allsteps)
+    start, end = utils.get_range_inds(start, end, allsteps)
 
     axes = initialize_axes(plot_metric_types)
     metrics = initialize_metrics(metric_types)
@@ -242,7 +227,16 @@ def onetime_metric_streams(start=0, end=10):
     for step in range(start, end+1):
         dprint(step)
 
-        true_label, pred_label, _, loss, train = alldata[step]
+        true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
+        # metrics = get_metric_distributions(true_label, pred_label, sum=False)
+        # true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
+        # conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
+        # print(conf)
+        # print('throughput: ', true_pos / (true_pos + false_neg))
+        #
+        # planet_photons = np.concatenate((input_data[metrics[0]], input_data[metrics[2]]), axis=0)
+        # calc_snr(planet_photons, astro_dict)
+
         metrics = update_metrics(true_label, pred_label, train, metrics, loss)
 
     for kind in ['train', 'test']:
@@ -262,38 +256,7 @@ def onetime_metric_streams(start=0, end=10):
 
     plt.show(block=True)
 
-def get_range_inds(start, end, allsteps):
-    if start < 0:
-        start = allsteps+start
-    if end < 0:
-        end = allsteps + end
-    return start, end
 
-def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos):
-    if tot_pos == 0.0:
-        conf = ('      +------+\n'
-                '     1| %.2f |\n'
-                'Pred -+------+\n'
-                '     0| %.2f |\n'
-                '      +------+\n'
-                '         0    \n'
-                '           True' % (false_pos / tot_neg,
-                                     true_neg / tot_neg))
-
-    else:
-        conf = ('      +------+------+\n'
-                '     1| %.2f | %.2f |\n'
-                'Pred -+------+------+\n'
-                '     0| %.2f | %.2f |\n'
-                '      +------+------+\n'
-                '         0   |  1\n'
-                '           True' % (false_pos / tot_neg, true_pos / tot_pos,
-                                     true_neg / tot_neg, false_neg / tot_pos))
-    print('true_pos: %f' % (true_pos))
-    print('true_neg: %f' % (true_neg))
-    print('false_pos: %f' % (false_pos))
-    print('false_neg: %f' % (false_neg))
-    return conf
 
 def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     """ Shows the net predictions on the cloud as a series of 2d histograms in 4x4 grid of form
@@ -311,7 +274,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     # assert jump >= config['train']['cache_freq']
     alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
-    start, end = get_range_inds(start, end, allsteps)
+    start, end = utils.get_range_inds(start, end, allsteps)
     dprint(start, end)
 
     visualiser = Grid_Visualiser(4, 4, row_headings= ['True Planet','Missed Planet','True Star','Missed Star'],
@@ -319,7 +282,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
                                  norm=LogNorm(), pred=type=='eval')
 
     if config['data']['quantize']:
-        _,_, cur_data, _, _ = alldata[0]
+        _,_, cur_data, _, _, _ = alldata[0]
         bins = [np.linspace(np.min(cur_data[:,0]),np.max(cur_data[:,0]), 100)] * 4
     else:
         bins = [np.linspace(-1, 1, 100) * 1e6] * 4
@@ -327,7 +290,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     dim_pairs = [[3, 2], [3, 1], [3, 0], [1, 2]]
 
     for step in range(start, end+1, jump):
-        true_label, pred_label, cur_data, _, trainbool = alldata[step]
+        true_label, pred_label, cur_data, _, trainbool, _ = alldata[step]
 
         metrics = get_metric_distributions(true_label, pred_label, sum=False)
         true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
@@ -355,8 +318,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Performance Monitor')
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
-    plot_fluxes()
-    plot_snr_trends()
-    # onetime_metric_streams(end = -1)
+
+    onetime_metric_streams(end = -1)
     # metric_tesseracts(start = 0, end = -1, jump=1)
 

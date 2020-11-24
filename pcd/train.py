@@ -82,7 +82,7 @@ def train(verbose=True):
             loss = criterion(output.F, labels_pt)
 
             # if i % 5 == 0:
-            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), astro_dict=astro_dict,
+            pt_step(coords, np.int_(labels), output.F.cpu().detach().numpy(), loss.item(), astro_dict,
                     train=True, verbose=verbose)
 
             # Gradient
