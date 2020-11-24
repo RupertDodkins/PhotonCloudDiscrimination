@@ -186,7 +186,7 @@ def num_input():
     return train_inds, test_inds
 
 def plot_snr_trends(start=0, end=-1):
-    alldata = load_meta('outputs')
+    alldata = load_meta('snr_data')
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
     snrdata = np.zeros((allsteps, len(alldata[0])))
@@ -203,14 +203,14 @@ def plot_snr_trends(start=0, end=-1):
     plt.show()
 
 def plot_fluxes(start=0, end=-1):
-    alldata = load_meta('fluxes')
+    alldata = load_meta('images')
     allsteps = len(alldata)
     start, end = get_range_inds(start, end, allsteps)
     images = []
 
     for step in range(start, end+1):
-        plt.plot(alldata[step][1], label=f'{step}')
-        images.append(alldata[step][0])
+        # plt.plot(alldata[step][1], label=f'{step}')
+        images.append(alldata[step])
 
     plt.legend()
     fig, axes = utils.init_grid(rows=5, cols=5, figsize=(16,8))

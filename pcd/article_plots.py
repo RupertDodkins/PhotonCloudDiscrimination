@@ -523,11 +523,11 @@ def calc_snr(planet_photons, astro_dict, plot=False):
                                                                            config['data']['fwhm'], verbose=True,
                                                                            full_output=True)
 
-    with open(config['train']['outputs'], 'ab') as handle:
+    with open(config['train']['snr_data'], 'ab') as handle:
         snr_tup = (pix_snr, pix_signal, pix_back_mean, pix_back_std)
         pickle.dump(snr_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(config['train']['fluxes'], 'ab') as handle:
-        pickle.dump((derot_image, fluxes), handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(config['train']['images'], 'ab') as handle:
+        pickle.dump(derot_image, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     if plot:
         fig = plt.figure(figsize=(12, 6))
