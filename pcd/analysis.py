@@ -5,7 +5,7 @@ from vip_hci.preproc import cube_derotate
 
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
-from utils import load_meta, get_metric_distributions, confusion_matrix, find_coords
+from utils import load_meta, get_bin_measures, confusion_matrix, find_coords
 
 def reduce_image(photons):
     tess = get_tess(photons)
@@ -97,7 +97,7 @@ def get_photons(amount=1):
     cur_seg, pred_seg_res, cur_data, _, trainbool, _ = alldata[-amount]
     del alldata
 
-    metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
+    metrics = get_bin_measures(cur_seg, pred_seg_res, sum=False)
     true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
     print(trainbool)
     print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))

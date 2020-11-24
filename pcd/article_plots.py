@@ -17,7 +17,7 @@ from medis.plot_tools import grid
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config
 from pcd.input import load_h5
-from pcd.utils import load_meta, get_metric_distributions, confusion_matrix
+from pcd.utils import load_meta, get_bin_measures, confusion_matrix
 from pcd.analysis import calc_snr, get_photons, get_tess, reduce_image, find_loc, pix_snr_loc
 
 home = os.path.expanduser("~")
@@ -137,7 +137,7 @@ def plot_3D_pointclouds():
     cur_data[:,2] = (cur_data[:,2] + 200) * mp.array_size[0]/400
     cur_data[:,3] = (cur_data[:,3] + 200) * mp.array_size[0]/400
 
-    true_pos, false_neg, false_pos, true_neg = get_metric_distributions(cur_seg, pred_seg_res, sum=True)
+    true_pos, false_neg, false_pos, true_neg = get_bin_measures(cur_seg, pred_seg_res, sum=True)
 
     print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
     all_photons = np.concatenate(
@@ -255,7 +255,7 @@ def contrast_curve():
         for ix, rev_ind in enumerate(range(1, 21, 1)): #1,21
 
             cur_seg, pred_seg_res, cur_data, _, trainbool, _ = alldata[-rev_ind]
-            metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
+            metrics = get_bin_measures(cur_seg, pred_seg_res, sum=False)
 
             true_star_photons = np.concatenate((cur_data[metrics[1]], cur_data[metrics[3]]), axis=0)
 
@@ -380,7 +380,7 @@ def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, ver
         if config['train']['roc_probabilities']:
             pred_val = np.argmax(pred_val, axis=-1)
 
-        metrics = get_metric_distributions(input_label, pred_val, sum=False)
+        metrics = get_bin_measures(input_label, pred_val, sum=False)
         true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
         conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
         print(conf)

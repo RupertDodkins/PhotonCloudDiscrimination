@@ -22,7 +22,7 @@ from medis.distribution import planck, Distribution
 from pcd.config.medis_params import sp, ap, tp, iop, mp
 from pcd.config.config import config, convert_astro, convert_inputfiles
 import utils
-from utils import confusion_matrix, get_metric_distributions
+from utils import confusion_matrix, get_bin_measures
 
 
 class MedisObs():
@@ -491,7 +491,7 @@ class DtReform(Reform):
                 plt.show()
 
         true_pos, false_neg, \
-        false_pos, true_neg = get_metric_distributions(self.df['exo'].values.astype(int),
+        false_pos, true_neg = get_bin_measures(self.df['exo'].values.astype(int),
                                                        self.df['bfadi_exo'].values.astype(int),
                                                        sum=True)
         print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
@@ -504,7 +504,7 @@ class DtReform(Reform):
 
         if plot_dict['out_map']:
             bins = [np.arange(mp.array_size[0])] * 2
-            metric_inds = get_metric_distributions(self.df['exo'].values.astype(int),
+            metric_inds = get_bin_measures(self.df['exo'].values.astype(int),
                                                     self.df['bfadi_exo'].values.astype(int),
                                                     sum=False)
             titles = ['true_pos', 'false_neg', 'false_pos', 'true_neg']

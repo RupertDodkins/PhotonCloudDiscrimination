@@ -15,7 +15,7 @@ import h5py
 from medis.utils import dprint
 from pcd.config.config import config
 import utils
-from utils import confusion_matrix, get_range_inds, get_metric_distributions, initialize_axes
+from utils import confusion_matrix, get_range_inds, get_bin_measures, initialize_axes
 from pcd.analysis import calc_snr
 
 class Grid_Visualiser():
@@ -133,7 +133,7 @@ def initialize_metrics(metric_types):
     return metrics
 
 def update_metrics(true_label, pred_label, train, metrics, loss=-1):
-    metrics_vol = get_metric_distributions(true_label, pred_label, sum=False)
+    metrics_vol = get_bin_measures(true_label, pred_label, sum=False)
 
     # np.float64 so ZeroDivideErrors -> np.nan
     true_pos, false_neg, false_pos, true_neg = np.float64(np.sum(metrics_vol[0])), np.float64(np.sum(metrics_vol[1])), \
@@ -228,7 +228,7 @@ def onetime_metric_streams(start=0, end=10):
         dprint(step)
 
         true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
-        # metrics = get_metric_distributions(true_label, pred_label, sum=False)
+        # metrics = get_bin_measures(true_label, pred_label, sum=False)
         # true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
         # conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
         # print(conf)
@@ -292,7 +292,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     for step in range(start, end+1, jump):
         true_label, pred_label, cur_data, _, trainbool, _ = alldata[step]
 
-        metrics = get_metric_distributions(true_label, pred_label, sum=False)
+        metrics = get_bin_measures(true_label, pred_label, sum=False)
         true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
 
         print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))

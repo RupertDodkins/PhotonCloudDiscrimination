@@ -65,7 +65,7 @@ def confusion_matrix(false_neg, true_pos, true_neg, false_pos, tot_neg, tot_pos)
     print('false_neg: %f' % (false_neg))
     return conf
 
-def get_metric_distributions(true_label, pred_label, sum=True):
+def get_bin_measures(true_label, pred_label, sum=True):
     true_neg = np.logical_and(true_label == 0, np.round(pred_label) == 0)  # round just in case the pred_val is in mean mode
     true_pos = np.logical_and(true_label == 1, np.round(pred_label) == 1)
     false_neg = np.logical_and(true_label == 1, np.round(pred_label) == 0)
