@@ -223,9 +223,6 @@ def get_photons(amount=1):
     print(trainbool)
     print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
 
-    # cur_data = cur_data[:, :, [0, 2, 1, 3]]
-
-    # fig = plt.figure()
     all_photons = np.concatenate(
         (cur_data[metrics[0]], cur_data[metrics[1]], cur_data[metrics[2]], cur_data[metrics[3]]),
         axis=0)
@@ -407,20 +404,14 @@ def rad_snr():
     """ image processing and snr calc for paper train data tests """
 
     fwhm =  config['data']['fwhm']
-    # nproc = 8
     snrs = np.zeros(1)
     for i in range(1):
-        planet_photons = get_photons(amount=-i)
-        planet_tess = get_tess(planet_photons)
-        if not planet_tess.max() == 0:
+        planet_photons = get_photons(amount=-i)[2]
+        derot_image = reduce_image(planet_photons)
+        if not derot_image.max() == 0:
             _, astro_dict = load_h5(config['testfiles'][-i], full_output=True)
-            angle_list = -np.linspace(0, sp.numframes * sp.sample_time * config['data']['rot_rate'] / 60, planet_tess.shape[1])
-            planet_derot = np.sum(cube_derotate(np.sum(planet_tess, axis=0), angle_list), axis=0)
-            planet_loc = astro_dict['loc'].astype('int')
-            # planet_loc = (planet_loc[0].item(), planet_loc[1].item())
-            # snrs[i] = snr(planet_derot, planet_loc, fwhm, plot=False, verbose=True)
-            # snrmap(planet_derot, fwhm, nproc=nproc, plot=True)
-            snrs[i] = pix_snr_loc(planet_derot, planet_loc, fwhm)
+            planet_loc = find_loc(astro_dict, derot_image)
+            snrs[i] = pix_snr_loc(derot_image, planet_loc, fwhm)
     print('snrs', snrs)
     return snrs.mean()
 
@@ -467,7 +458,7 @@ def rad_cont():
         cont = std*5/(throughput*tot_neg)
         return cont
 
-def pix_snr_loc(array, source_xy, fwhm, verbose=True, full_output=False):
+def pix_snr_loc(array, source_xy, fwhm, verbose=False, full_output=False):
     """
     homemade func for snr that differs from vips to account for jumps in number of apertures
 
@@ -489,13 +480,7 @@ def pix_snr_loc(array, source_xy, fwhm, verbose=True, full_output=False):
 
     annuli_coords = centered_coords + mp.array_size[0]//2
     annuli_coords = np.delete(annuli_coords, np.where(np.sqrt(np.sum(offset ** 2, axis=0)) <= (fwhm/2)+4), axis=1)
-    # todo delete on confirmation
-    # testmap = np.zeros_like(array)
-    # testmap[annuli_coords[0],annuli_coords[1]] = array[annuli_coords[0],annuli_coords[1]]
-    # plt.ion()
-    # _, ax = plt.subplots(figsize=(6, 6))
-    # ax.imshow(testmap, origin='lower')
-    # plt.show(block=True)
+
     fluxes = array[annuli_coords[0],annuli_coords[1]]
     app_pix = np.pi*(fwhm/2)**2
     f_source = aperture_flux(array, [source_xy[0]+mp.array_size[0]//2], [source_xy[1]+mp.array_size[1]//2], fwhm)[0]/app_pix
@@ -516,7 +501,48 @@ def pix_snr_loc(array, source_xy, fwhm, verbose=True, full_output=False):
     else:
         return snr_value
 
-def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, verbose=True, calc_snr=True, plot=False):
+def reduce_image(photons):
+    tess = get_tess(photons)
+    derot_image = derot_tess(tess)
+    return derot_image
+
+def find_loc(astro_dict, derot_image):
+    planet_loc = astro_dict['loc'].astype('int') + mp.array_size // 2
+    zoomim = derot_image[planet_loc[0] - 5:planet_loc[0] + 5, planet_loc[1] - 5:planet_loc[1] + 5]
+    correction = np.array(np.unravel_index(np.argmax(zoomim), zoomim.shape)) - np.array([5, 5])
+    planet_loc += correction
+    return planet_loc
+
+def calc_snr(planet_photons, astro_dict, plot=False):
+    derot_image = reduce_image(planet_photons)
+    planet_loc = find_loc(astro_dict, derot_image)
+
+    print('planet_loc: ', planet_loc)
+    pix_snr, pix_signal, pix_back_mean, pix_back_std, fluxes = pix_snr_loc(derot_image,
+                                                                           planet_loc - mp.array_size // 2,
+                                                                           config['data']['fwhm'], verbose=True,
+                                                                           full_output=True)
+
+    with open(config['train']['outputs'], 'ab') as handle:
+        snr_tup = (pix_snr, pix_signal, pix_back_mean, pix_back_std)
+        pickle.dump(snr_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(config['train']['fluxes'], 'ab') as handle:
+        pickle.dump((derot_image, fluxes), handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    if plot:
+        fig = plt.figure(figsize=(12, 6))
+        ax = fig.add_subplot(121)
+        pcm = ax.imshow(derot_image, origin='lower')
+        fig.colorbar(pcm, ax=ax)
+        aper = plt.Circle(planet_loc[::-1], radius=config['data']['fwhm'] / 2., color='r', fill=False, alpha=0.8)
+        ax.add_patch(aper)
+        ax = fig.add_subplot(122)
+        snrimage = snrmap(derot_image, fwhm=config['data']['fwhm'], nproc=8)
+        pcm = ax.imshow(snrimage, origin='lower')
+        fig.colorbar(pcm, ax=ax)
+        plt.show()
+
+def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, verbose=True, snr=True):
     if not config['train']['roc_probabilities']:
         pred_val = np.argmax(pred_val, axis=-1)
 
@@ -532,45 +558,11 @@ def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, ver
         true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
         conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
         print(conf)
+        print('throughput: ', true_pos  / (true_pos + false_neg))
 
-        if calc_snr:
-            planet_photons = np.concatenate((input_data[metrics[0]], input_data[metrics[2]]), axis=0)
-            planet_tess = get_tess(planet_photons)
-            planet_derot = derot_tess(planet_tess)
-            planet_loc = astro_dict['loc'].astype('int') + mp.array_size//2
-            print('planet_loc: ', planet_loc)
-            zoomim = planet_derot[planet_loc[0]-5:planet_loc[0]+5, planet_loc[1]-5:planet_loc[1]+5]
-            correction = np.array(np.unravel_index(np.argmax(zoomim), zoomim.shape)) - np.array([5,5])
-            print(correction)
-            planet_loc += correction
-            tot_pos = true_pos + false_neg
-            print('throughput: ', true_pos / tot_pos)
-            print('planet_loc: ', planet_loc)
-            pix_snr, pix_signal, pix_back_mean, pix_back_std, fluxes = pix_snr_loc(planet_derot,
-                                                                           planet_loc - mp.array_size//2,
-                                                                           config['data']['fwhm'], verbose=True,
-                                                                           full_output=True)
-            _, _, app_signal, app_std, app_mean, app_snr = snr(planet_derot, (planet_loc[1].item(), planet_loc[0].item()),
-                                                     config['data']['fwhm'], verbose=True, full_output=True)
-            with open(config['train']['outputs'], 'ab') as handle:
-                snr_tup = (true_pos / tot_pos, pix_snr, pix_signal, pix_back_mean, pix_back_std, app_snr, app_signal,
-                           app_mean, app_std)
-                pickle.dump(snr_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            with open(config['train']['fluxes'], 'ab') as handle:
-                print(len(fluxes), 'lenfluxes')
-                pickle.dump((planet_derot, fluxes), handle, protocol=pickle.HIGHEST_PROTOCOL)
-            if plot:
-                fig = plt.figure(figsize=(12,6))
-                ax = fig.add_subplot(121)
-                pcm = ax.imshow(planet_derot, origin='lower')
-                fig.colorbar(pcm, ax=ax)
-                aper = plt.Circle(planet_loc[::-1], radius=config['data']['fwhm'] / 2., color='r', fill=False, alpha=0.8)
-                ax.add_patch(aper)
-                ax = fig.add_subplot(122)
-                snrimage = snrmap(planet_derot, fwhm=config['data']['fwhm'], nproc=8)
-                pcm=ax.imshow(snrimage, origin='lower')
-                fig.colorbar(pcm, ax=ax)
-                plt.show()
+    if snr:
+        planet_photons = np.concatenate((input_data[metrics[0]], input_data[metrics[2]]), axis=0)
+        calc_snr(planet_photons, astro_dict)
 
 if __name__ == '__main__':
     get_reduced_images(ind=-1, plot=True)
