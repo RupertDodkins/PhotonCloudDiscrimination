@@ -120,40 +120,6 @@ def load_meta(kind='pt_outputs', amount=-1):
 
     return alldata
 
-def initialize_metrics(metric_types):
-    values = [np.empty(0)]*len(metric_types)
-
-    metrics = {}
-    metrics['train'] = dict(zip(metric_types, values))
-    metrics['test'] = dict(zip(metric_types, values))
-    print(metrics['train'])
-    metrics['train']['lines'], metrics['test']['lines'] = [], []
-    metrics['train']['color'], metrics['test']['color'] = 'C1', 'C0'
-
-    return metrics
-
-def update_metrics(true_label, pred_label, train, metrics, loss=-1):
-    metrics_vol = get_bin_measures(true_label, pred_label, sum=False)
-
-    # np.float64 so ZeroDivideErrors -> np.nan
-    true_pos, false_neg, false_pos, true_neg = np.float64(np.sum(metrics_vol[0])), np.float64(np.sum(metrics_vol[1])), \
-                                               np.float64(np.sum(metrics_vol[2])), np.float64(np.sum(metrics_vol[3])),
-
-    tot_neg, tot_pos = true_neg + false_pos, true_pos + false_neg
-    dprint(tot_neg, tot_pos, train)
-
-    kind = 'train' if train else 'test'
-    metrics[kind]['True Positive'] = np.append(metrics[kind]['True Positive'], true_pos / tot_pos)
-    metrics[kind]['False Negative'] = np.append(metrics[kind]['False Negative'], false_neg / tot_pos)
-    metrics[kind]['False Positive'] = np.append(metrics[kind]['False Positive'], false_pos / tot_neg)
-    metrics[kind]['True Negative'] = np.append(metrics[kind]['True Negative'], true_neg / tot_neg)
-    metrics[kind]['Recall'] = np.append(metrics[kind]['Recall'], true_pos / (true_pos+false_neg))
-    metrics[kind]['Precision'] = np.append(metrics[kind]['Precision'], true_pos / (true_pos + false_pos))
-    metrics[kind]['Accuracy'] = np.append(metrics[kind]['Accuracy'], (true_pos+true_neg) / (tot_pos+tot_neg))
-    metrics[kind]['Loss'] = np.append(metrics[kind]['Loss'], loss)
-
-    return metrics
-
 def num_input():
     ALL_FILES = np.append(config['trainfiles'], config['testfiles'])
     train_inds = 0
@@ -205,16 +171,16 @@ def plot_fluxes(start=0, end=-1):
     plt.tight_layout()
     plt.show()
 
-def onetime_metric_streams(start=0, end=10):
+def bin_measure_trends(start=0, end=10):
     """
     Shows metrics as a function of training steps
 
     :return:
     """
 
-    plot_metric_types = ['True Positive', 'True Negative']
+    plot_metric_types = ['True Positive', 'True Negative', 'Loss', 'SNR']
     metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall', 'Precision',
-                    'Accuracy', 'Loss']
+                    'Accuracy', 'Loss', 'SNR']
 
     num_train, num_test = num_input()
     alldata = load_meta('pt_outputs')
@@ -222,24 +188,45 @@ def onetime_metric_streams(start=0, end=10):
     start, end = utils.get_range_inds(start, end, allsteps)
 
     axes = initialize_axes(plot_metric_types)
-    metrics = initialize_metrics(metric_types)
+    values = [np.empty(0)] * len(metric_types)
+    metrics = {}
+    metrics['train'] = dict(zip(metric_types, values))
+    metrics['test'] = dict(zip(metric_types, values))
+    metrics['train']['lines'], metrics['test']['lines'] = [], []
+    metrics['train']['color'], metrics['test']['color'] = 'C1', 'C0'
 
     for step in range(start, end+1):
-        dprint(step)
 
         true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
-        # metrics = get_bin_measures(true_label, pred_label, sum=False)
-        # true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
-        # conf = confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg)
-        # print(conf)
-        # print('throughput: ', true_pos / (true_pos + false_neg))
-        #
-        # planet_photons = np.concatenate((input_data[metrics[0]], input_data[metrics[2]]), axis=0)
-        # calc_snr(planet_photons, astro_dict)
+        tp_list, fn_list, fp_list, tn_list = get_bin_measures(true_label, pred_label, sum=False)
+        tp_frac, fn_frac, fp_frac, tn_frac = np.sum([tp_list, fn_list, fp_list, tn_list], axis=1)
+        print(confusion_matrix(fn_frac, tp_frac, tn_frac, fp_frac, tn_frac + fp_frac, tp_frac + fn_frac))
+        print('throughput: ', tp_frac / (tp_frac + fn_frac))
 
-        metrics = update_metrics(true_label, pred_label, train, metrics, loss)
+        planet_photons = np.concatenate((input_data[tp_list], input_data[fp_list]), axis=0)
+        snr = calc_snr(planet_photons, astro_dict)
 
-    for kind in ['train', 'test']:
+        metrics_vol = get_bin_measures(true_label, pred_label, sum=False)
+
+        # np.float64 so ZeroDivideErrors -> np.nan
+        true_pos, false_neg, false_pos, true_neg = (np.float64(np.sum(metrics_vol[i])) for i in range(4))
+
+        tot_neg, tot_pos = true_neg + false_pos, true_pos + false_neg
+        dprint(tot_neg, tot_pos, train)
+
+        kind = 'train' if train else 'test'
+        metrics[kind]['True Positive'] = np.append(metrics[kind]['True Positive'], true_pos / tot_pos)
+        metrics[kind]['False Negative'] = np.append(metrics[kind]['False Negative'], false_neg / tot_pos)
+        metrics[kind]['False Positive'] = np.append(metrics[kind]['False Positive'], false_pos / tot_neg)
+        metrics[kind]['True Negative'] = np.append(metrics[kind]['True Negative'], true_neg / tot_neg)
+        metrics[kind]['Recall'] = np.append(metrics[kind]['Recall'], true_pos / (true_pos + false_neg))
+        metrics[kind]['Precision'] = np.append(metrics[kind]['Precision'], true_pos / (true_pos + false_pos))
+        metrics[kind]['Accuracy'] = np.append(metrics[kind]['Accuracy'], (true_pos + true_neg) / (tot_pos + tot_neg))
+        metrics[kind]['Loss'] = np.append(metrics[kind]['Loss'], loss)
+        metrics[kind]['SNR'] = np.append(metrics[kind]['SNR'], snr)
+
+    kinds = ['train', 'test'] if config['data']['test_frac'] > 0 else ['train']
+    for kind in kinds:
 
         # get the number of x values
         num = len(metrics[kind][plot_metric_types[0]])
@@ -319,6 +306,6 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
 
-    onetime_metric_streams(end = -1)
+    bin_measure_trends(end = -1)
     # metric_tesseracts(start = 0, end = -1, jump=1)
 

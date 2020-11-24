@@ -26,8 +26,7 @@ def calc_snr(planet_photons, astro_dict, plot=False):
     derot_image = reduce_image(planet_photons)
     planet_loc = find_loc(astro_dict, derot_image)
 
-    snr_data = pix_snr_loc(derot_image, planet_loc - mp.array_size // 2, config['data']['fwhm'], verbose=True,
-                                                                           full_output=True)
+    snr = pix_snr_loc(derot_image, planet_loc - mp.array_size // 2, config['data']['fwhm'], verbose=True)[0]
     # with open(config['train']['snr_data'], 'ab') as handle:
     #     pickle.dump(snr_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
     # with open(config['train']['images'], 'ab') as handle:
@@ -46,9 +45,9 @@ def calc_snr(planet_photons, astro_dict, plot=False):
         fig.colorbar(pcm, ax=ax)
         plt.show()
 
-    return snr_data
+    return snr
 
-def pix_snr_loc(array, source_xy, fwhm, verbose=False, full_output=False):
+def pix_snr_loc(array, source_xy, fwhm, verbose=False):
     """
     homemade func for snr that differs from vips to account for jumps in number of apertures
 
@@ -86,10 +85,7 @@ def pix_snr_loc(array, source_xy, fwhm, verbose=False, full_output=False):
         print(msg3.format(fluxes.mean()))
         print(msg4.format(fluxes.std()))
 
-    if full_output:
-        return (snr_value, f_source, fluxes.mean(), fluxes.std())
-    else:
-        return snr_value
+    return (snr_value, f_source, fluxes.mean(), fluxes.std())
 
 def get_photons(amount=1):
     print('amount = ', amount)

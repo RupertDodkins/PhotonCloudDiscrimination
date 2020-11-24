@@ -364,7 +364,7 @@ def rad_snr():
         if not derot_image.max() == 0:
             _, astro_dict = load_h5(config['testfiles'][-i], full_output=True)
             planet_loc = find_loc(astro_dict, derot_image)
-            snrs[i] = pix_snr_loc(derot_image, planet_loc, fwhm)
+            snrs[i] = pix_snr_loc(derot_image, planet_loc, fwhm)[0]
     print('snrs', snrs)
     return snrs.mean()
 
