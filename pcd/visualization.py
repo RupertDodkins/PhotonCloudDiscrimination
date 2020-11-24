@@ -119,11 +119,11 @@ def load_meta(kind='pt_outputs', amount=-1):
 
     return alldata
 
-def get_metric_distributions(cur_seg, pred_seg_res, sum=True):
-    true_neg = np.logical_and(cur_seg == 0, np.round(pred_seg_res) == 0)  # round just in case the pred_val is in mean mode
-    true_pos = np.logical_and(cur_seg == 1, np.round(pred_seg_res) == 1)
-    false_neg = np.logical_and(cur_seg == 1, np.round(pred_seg_res) == 0)
-    false_pos = np.logical_and(cur_seg == 0, np.round(pred_seg_res) == 1)
+def get_metric_distributions(true_label, pred_label, sum=True):
+    true_neg = np.logical_and(true_label == 0, np.round(pred_label) == 0)  # round just in case the pred_val is in mean mode
+    true_pos = np.logical_and(true_label == 1, np.round(pred_label) == 1)
+    false_neg = np.logical_and(true_label == 1, np.round(pred_label) == 0)
+    false_pos = np.logical_and(true_label == 0, np.round(pred_label) == 1)
 
     metrics = [true_pos, false_neg, false_pos, true_neg]
 
@@ -151,8 +151,8 @@ def initialize_metrics(metric_types):
 
     return metrics
 
-def update_metrics(cur_seg, pred_seg_res, train, metrics, loss=-1):
-    metrics_vol = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
+def update_metrics(true_label, pred_label, train, metrics, loss=-1):
+    metrics_vol = get_metric_distributions(true_label, pred_label, sum=False)
 
     # np.float64 so ZeroDivideErrors -> np.nan
     true_pos, false_neg, false_pos, true_neg = np.float64(np.sum(metrics_vol[0])), np.float64(np.sum(metrics_vol[1])), \
@@ -220,7 +220,6 @@ def plot_fluxes(start=0, end=-1):
     plt.tight_layout()
     plt.show()
 
-
 def onetime_metric_streams(start=0, end=10):
     """
     Shows metrics as a function of training steps
@@ -243,10 +242,8 @@ def onetime_metric_streams(start=0, end=10):
     for step in range(start, end+1):
         dprint(step)
 
-        cur_seg, pred_seg_res, _, loss, train = alldata[step]
-        dprint(train)
-
-        metrics = update_metrics(cur_seg, pred_seg_res, train, metrics, loss)
+        true_label, pred_label, _, loss, train = alldata[step]
+        metrics = update_metrics(true_label, pred_label, train, metrics, loss)
 
     for kind in ['train', 'test']:
 
@@ -330,9 +327,9 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
     dim_pairs = [[3, 2], [3, 1], [3, 0], [1, 2]]
 
     for step in range(start, end+1, jump):
-        cur_seg, pred_seg_res, cur_data, _, trainbool = alldata[step]
+        true_label, pred_label, cur_data, _, trainbool = alldata[step]
 
-        metrics = get_metric_distributions(cur_seg, pred_seg_res, sum=False)
+        metrics = get_metric_distributions(true_label, pred_label, sum=False)
         true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
 
         print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))

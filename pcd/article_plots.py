@@ -497,7 +497,7 @@ def pix_snr_loc(array, source_xy, fwhm, verbose=False, full_output=False):
         print(msg4.format(fluxes.std()))
 
     if full_output:
-        return (snr_value, f_source, fluxes.mean(), fluxes.std(), fluxes)
+        return (snr_value, f_source, fluxes.mean(), fluxes.std())
     else:
         return snr_value
 
@@ -518,14 +518,10 @@ def calc_snr(planet_photons, astro_dict, plot=False):
     planet_loc = find_loc(astro_dict, derot_image)
 
     print('planet_loc: ', planet_loc)
-    pix_snr, pix_signal, pix_back_mean, pix_back_std, fluxes = pix_snr_loc(derot_image,
-                                                                           planet_loc - mp.array_size // 2,
-                                                                           config['data']['fwhm'], verbose=True,
+    snr_data = pix_snr_loc(derot_image, planet_loc - mp.array_size // 2, config['data']['fwhm'], verbose=True,
                                                                            full_output=True)
-
     with open(config['train']['snr_data'], 'ab') as handle:
-        snr_tup = (pix_snr, pix_signal, pix_back_mean, pix_back_std)
-        pickle.dump(snr_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(snr_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
     with open(config['train']['images'], 'ab') as handle:
         pickle.dump(derot_image, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -541,6 +537,8 @@ def calc_snr(planet_photons, astro_dict, plot=False):
         pcm = ax.imshow(snrimage, origin='lower')
         fig.colorbar(pcm, ax=ax)
         plt.show()
+
+    return snr_data
 
 def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, verbose=True, snr=True):
     if not config['train']['roc_probabilities']:
