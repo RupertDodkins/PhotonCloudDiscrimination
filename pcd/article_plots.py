@@ -420,7 +420,7 @@ def rad_snr():
             # planet_loc = (planet_loc[0].item(), planet_loc[1].item())
             # snrs[i] = snr(planet_derot, planet_loc, fwhm, plot=False, verbose=True)
             # snrmap(planet_derot, fwhm, nproc=nproc, plot=True)
-            snrs[i] = all_snr_loc(planet_derot, planet_loc, fwhm)
+            snrs[i] = pix_snr_loc(planet_derot, planet_loc, fwhm)
     print('snrs', snrs)
     return snrs.mean()
 
@@ -467,7 +467,7 @@ def rad_cont():
         cont = std*5/(throughput*tot_neg)
         return cont
 
-def all_snr_loc(array, source_xy, fwhm, verbose=True, full_output=False):
+def pix_snr_loc(array, source_xy, fwhm, verbose=True, full_output=False):
     """
     homemade func for snr that differs from vips to account for jumps in number of apertures
 
@@ -546,14 +546,14 @@ def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, ver
             tot_pos = true_pos + false_neg
             print('throughput: ', true_pos / tot_pos)
             print('planet_loc: ', planet_loc)
-            all_snr, all_signal, all_back_mean, all_back_std, fluxes = all_snr_loc(planet_derot,
+            pix_snr, pix_signal, pix_back_mean, pix_back_std, fluxes = pix_snr_loc(planet_derot,
                                                                            planet_loc - mp.array_size//2,
                                                                            config['data']['fwhm'], verbose=True,
                                                                            full_output=True)
             _, _, app_signal, app_std, app_mean, app_snr = snr(planet_derot, (planet_loc[1].item(), planet_loc[0].item()),
                                                      config['data']['fwhm'], verbose=True, full_output=True)
             with open(config['train']['outputs'], 'ab') as handle:
-                snr_tup = (true_pos / tot_pos, all_snr, all_signal, all_back_mean, all_back_std, app_snr, app_signal,
+                snr_tup = (true_pos / tot_pos, pix_snr, pix_signal, pix_back_mean, pix_back_std, app_snr, app_signal,
                            app_mean, app_std)
                 pickle.dump(snr_tup, handle, protocol=pickle.HIGHEST_PROTOCOL)
             with open(config['train']['fluxes'], 'ab') as handle:

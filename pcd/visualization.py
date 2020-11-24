@@ -194,8 +194,8 @@ def plot_snr_trends(start=0, end=-1):
         dprint(step)
 
         snrdata[step] = alldata[step]
-        # througput, all_snr, all_signal, all_back_mean, all_back_std, app_snr, app_signal, app_std = alldata[step]
-    metric_types = ['througput', 'all_snr', 'all_signal', 'all_back_mean', 'all_back_std', 'app_snr', 'app_signal',
+
+    metric_types = ['througput', 'pix_snr', 'pix_signal', 'pix_back_mean', 'pix_back_std', 'app_snr', 'app_signal',
                     'app_mean', 'app_std']
     axes = initialize_axes(metric_types)
     for i, (ax, metric) in enumerate(zip(axes, metric_types)):
