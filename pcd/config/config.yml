@@ -40,9 +40,9 @@ train:
   wd: 0.
   log_dir: *WDIR
   data_dir: *WDIR
-  outputs: !join [*WDIR, outputs.pkl]
+  snr_data: !join [*WDIR, snr_data.pkl]
   pt_outputs: !join [*WDIR, pt_outputs.pkl]
-  fluxes: !join [*WDIR, fluxes.pkl]
+  images: !join [*WDIR, images.pkl]
   learning_rate: 0.0001  # 1e-5   todo use
   cache_freq: 10  # todo use
   roc_probabilities: False
