@@ -69,6 +69,7 @@ def pix_snr_loc(array, source_xy, fwhm, verbose=False):
 
     annuli_coords = centered_coords + mp.array_size[0]//2
     annuli_coords = np.delete(annuli_coords, np.where(np.sqrt(np.sum(offset ** 2, axis=0)) <= (fwhm/2)+4), axis=1)
+    annuli_coords = np.delete(annuli_coords, np.where(np.logical_or(annuli_coords>=mp.array_size[0],annuli_coords<0)), axis=1)
 
     fluxes = array[annuli_coords[0],annuli_coords[1]]
     app_pix = np.pi*(fwhm/2)**2
