@@ -16,7 +16,7 @@ from medis.utils import dprint
 from pcd.config.config import config
 import utils
 from utils import confusion_matrix, get_range_inds, get_bin_measures, initialize_axes
-from pcd.analysis import calc_snr
+from pcd.analysis import calc_snr, reduce_image
 
 class Grid_Visualiser():
     def __init__(self, rows, cols, numsteps, row_headings=None, xtitles=None, ytitles=None, norm=None, pred=False):
@@ -151,22 +151,25 @@ def plot_snr_trends(start=0, end=-1):
         ax.set_title(metric)
     plt.show()
 
-def plot_fluxes(start=0, end=-1):
-    print('todo: calculate images using calc_snr after loading')
-    raise NotImplementedError
-    alldata = load_meta('images')
+def plot_images(start=0, end=-1):
+    alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
+
     start, end = utils.get_range_inds(start, end, allsteps)
     images = []
 
     for step in range(start, end+1):
-        # plt.plot(alldata[step][1], label=f'{step}')
-        images.append(alldata[step])
+        true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
+        tp_list, fn_list, fp_list, tn_list = get_bin_measures(true_label, pred_label, sum=False)
+        planet_photons = np.concatenate((input_data[tp_list], input_data[fp_list]), axis=0)
+        derot_image = reduce_image(planet_photons)
+        images.append(derot_image)
 
-    plt.legend()
-    fig, axes = utils.init_grid(rows=5, cols=5, figsize=(16,8))
+    fig, axes = utils.init_grid(rows=6, cols=6, figsize=(16,8))
     axes = axes.flatten()
-    for im, image in enumerate(images[::4]):
+    num_in = int(config['data']['num_indata'])
+    start_loc = int(num_in*(1-config['data']['test_frac']))+1
+    for im, image in enumerate(images[start_loc::num_in]):
         axes[im].imshow(image, origin='lower')
     plt.tight_layout()
     plt.show()
@@ -199,9 +202,9 @@ def metric_trends(start=0, end=10):
 
         true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
         tp_list, fn_list, fp_list, tn_list = get_bin_measures(true_label, pred_label, sum=False)
-        tp_frac, fn_frac, fp_frac, tn_frac = np.sum([tp_list, fn_list, fp_list, tn_list], axis=1)
-        print(confusion_matrix(fn_frac, tp_frac, tn_frac, fp_frac, tn_frac + fp_frac, tp_frac + fn_frac))
-        print('throughput: ', tp_frac / (tp_frac + fn_frac))
+        # tp_frac, fn_frac, fp_frac, tn_frac = np.sum([tp_list, fn_list, fp_list, tn_list], axis=1)
+        # print(confusion_matrix(fn_frac, tp_frac, tn_frac, fp_frac, tn_frac + fp_frac, tp_frac + fn_frac))
+        # print('throughput: ', tp_frac / (tp_frac + fn_frac))
 
         planet_photons = np.concatenate((input_data[tp_list], input_data[fp_list]), axis=0)
         snr = calc_snr(planet_photons, astro_dict)
@@ -304,6 +307,7 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
 
+    plot_images()
     metric_trends(end = -1)
     # metric_tesseracts(start = 0, end = -1, jump=1)
 
