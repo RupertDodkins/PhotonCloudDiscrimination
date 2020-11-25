@@ -7,7 +7,7 @@ import copy
 from pcd.input import make_input
 from pcd.train import train
 from pcd.predict import predict
-from pcd.article_plots import get_reduced_images, traintest_snrs
+from pcd.article_plots import get_reduced_images, snr_stats
 from pcd.config.config import config
 
 # def step_performance():
@@ -96,7 +96,7 @@ def step_performance():
         if not os.path.exists(config['train']['pt_outputs']):
             predict()
 
-        snrs[s] = rad_snr()
+        snrs[s] = snr_stats()
 
     plt.plot(steps, snrs)
     plt.xlabel('Num input')
@@ -106,10 +106,11 @@ def step_performance():
     plt.show()
 
 def input_performance():
-    num_train = np.arange(1,int(config['data']['num_indata']*(1-config['data']['test_frac'])),2)
-    savepth = 'num_{}.pth'
-    pt_out = 'pt_num_{}.pkl'
-    snrs = np.zeros((len(num_train),2))
+    # num_train = np.arange(1,int(config['data']['num_indata']*(1-config['data']['test_frac'])),2)
+    num_train = np.arange(1,28,2)
+    savepth = 'second_pt_num/num_{}.pth'
+    pt_out = 'second_pt_num/pt_num_{}.pkl'
+    snrs = np.zeros((len(num_train),4))
     all_train = copy.copy(config['trainfiles'])
     num_test = int(copy.copy(config['data']['num_indata']*config['data']['test_frac']))
 
@@ -124,13 +125,15 @@ def input_performance():
             config['data']['test_frac'] = num_test/config['data']['num_indata']
             train(verbose=True)
 
-        snrs[n] = traintest_snrs()
+        snrs[n] = snr_stats()
 
-    plt.plot(num_train, snrs[:,0])
-    plt.plot(num_train, snrs[:,1])
+    snrs[np.isnan(snrs)] = 0
+    plt.errorbar(num_train, snrs[:,0], label='test') #, yerr=snrs[:,1]
+    plt.errorbar(num_train, snrs[:,1], label='train')#, yerr=snrs[:,3]
+    plt.legend()
     plt.xlabel('Num input')
-    plt.ylabel('Contrast')
-    plt.yscale('log')
+    plt.ylabel('SNR')
+    # plt.yscale('log')
     plt.legend()
     plt.show()
 

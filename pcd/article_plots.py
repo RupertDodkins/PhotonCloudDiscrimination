@@ -353,7 +353,7 @@ def contrast_curve():
         # grid(imlist, logZ=True, vlim=(1,60), show=False)
     # plt.show(block=True)
 
-def traintest_snrs():
+def snr_stats():
     """ image loading analysis with separation into train/test """
     alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
@@ -368,7 +368,10 @@ def traintest_snrs():
         snrs[step] = snr
         trains[step] = train
 
-    return (snrs[trains==0].mean(), snrs[trains==1].mean())
+    test_snrs = snrs[trains == 0]
+    train_snrs = snrs[trains == 1]
+
+    return test_snrs.mean(), train_snrs.mean(), test_snrs.std()/np.sqrt(len(test_snrs)), train_snrs.std()/np.sqrt(len(train_snrs))
 
 def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, verbose=True):
     if not config['train']['roc_probabilities']:
