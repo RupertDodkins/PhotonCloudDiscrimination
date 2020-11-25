@@ -4,13 +4,11 @@ import numpy as np
 import shutil
 import copy
 
-from vip_hci.metrics import contrcurve, aperture_flux, noise_per_annulus
-
 from pcd.input import make_input
 from pcd.train import train
 from pcd.predict import predict
-from pcd.article_plots import get_reduced_images, rad_cont, rad_snr
-from pcd.config.config import config, convert_astro
+from pcd.article_plots import get_reduced_images, rad_snr
+from pcd.config.config import config
 
 # def step_performance():
 #     """
@@ -78,9 +76,9 @@ from pcd.config.config import config, convert_astro
 
 def step_performance():
     steps = [1, 2, 4, 10, 20, 40]
-    fwhm = 10
     savepth = 'step_{}.pth'
     pt_out = 'pt_step_{}.pkl'
+    snrs = np.zeros((len(steps)))
 
     for s in range(len(steps)):
         config['savepath'] = config['working_dir']+savepth.format(steps[s])
@@ -98,47 +96,38 @@ def step_performance():
         if not os.path.exists(config['train']['pt_outputs']):
             predict()
 
-def input_performance():
-    # config['testfiles'] = config['testfiles'][:1]
+        snrs[s] = rad_snr()
 
-    # num_in = [1, 2, 4, 10, 20,40]
-    num_in = np.arange(1,21,2)
-    fwhm = 5
-    fhqm = fwhm / 2
-    lods = range(1, 7)
+    plt.plot(steps, snrs)
+    plt.xlabel('Num input')
+    plt.ylabel('Contrast')
+    plt.yscale('log')
+    plt.legend()
+    plt.show()
+
+def input_performance():
+    num_train = np.arange(1,int(config['data']['num_indata']*(1-config['data']['test_frac'])),2)
     savepth = 'num_{}.pth'
     pt_out = 'pt_num_{}.pkl'
-
-    # lod_conts = np.zeros((len(lods), len(num_in)))
-    contrasts = np.zeros((len(num_in)))
-    rad = np.arange(73)
-
+    snrs = np.zeros((len(num_train),2))
     all_train = copy.copy(config['trainfiles'])
-    config['testfiles'] = config['testfiles'][:1]
+    num_test = int(copy.copy(config['data']['num_indata']*config['data']['test_frac']))
 
-    for n in range(len(num_in)):
-        config['savepath'] = config['working_dir']+savepth.format(num_in[n])
+    for n in range(len(num_train)):
+        config['savepath'] = config['working_dir'] + savepth.format(num_train[n])
+        config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(num_train[n])
 
         if not os.path.exists(config['savepath']):
             config['train']['max_epoch'] = 2 # int(np.round(num_in.max()/num_in[n]))
-            config['trainfiles'] = all_train[:num_in[n]]
-            config['data']['num_indata'] = num_in[n]
-            config['data']['test_frac'] = 0
+            config['trainfiles'] = all_train[:num_train[n]]
+            config['data']['num_indata'] = num_train[n] + num_test
+            config['data']['test_frac'] = num_test/config['data']['num_indata']
             train(verbose=True)
-        config['train']['pt_outputs'] = config['working_dir']+pt_out.format(num_in[n])
-        if not os.path.exists(config['train']['pt_outputs']):
-            # assert len(config['testfiles']) == 1
-            predict()
 
-        # contrasts[n] = rad_cont()
-        contrasts[n] = rad_snr()
+        snrs[n] = rad_snr()
 
-    # plt.yscale('log')
-    # plt.legend()
-    # plt.figure()
-    # for il, lod_cont in enumerate(lod_conts):
-    #     plt.plot(num_in, lod_cont, label=f"{lods[il]}")
-    plt.plot(num_in, contrasts)
+    plt.plot(num_train, snrs[:,0])
+    plt.plot(num_train, snrs[:,1])
     plt.xlabel('Num input')
     plt.ylabel('Contrast')
     plt.yscale('log')

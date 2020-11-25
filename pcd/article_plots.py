@@ -355,18 +355,20 @@ def contrast_curve():
 
 def rad_snr():
     """ image processing and snr calc for paper train data tests """
+    alldata = load_meta('pt_outputs')
+    allsteps = len(alldata)
+    snrs = np.zeros(allsteps)
+    trains = np.zeros(allsteps)
 
-    fwhm =  config['data']['fwhm']
-    snrs = np.zeros(1)
-    for i in range(1):
-        planet_photons = get_photons(amount=-i)[2]
-        derot_image = reduce_image(planet_photons)
-        if not derot_image.max() == 0:
-            _, astro_dict = load_h5(config['testfiles'][-i], full_output=True)
-            planet_loc = find_loc(astro_dict, derot_image)
-            snrs[i] = pix_snr_loc(derot_image, planet_loc, fwhm)[0]
-    print('snrs', snrs)
-    return snrs.mean()
+    for step in range(allsteps):
+        true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
+        tp_list, fn_list, fp_list, tn_list = get_bin_measures(true_label, pred_label, sum=False)
+        planet_photons = np.concatenate((input_data[tp_list], input_data[fp_list]), axis=0)
+        snr = calc_snr(planet_photons, astro_dict)
+        snrs[step] = snr
+        trains[step] = train
+
+    return (snrs[trains==0].mean(), snrs[trains==1].mean())
 
 def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, verbose=True):
     if not config['train']['roc_probabilities']:
