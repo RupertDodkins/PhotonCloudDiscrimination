@@ -8,8 +8,11 @@ from pcd.config.config import config
 from utils import load_meta, get_bin_measures, confusion_matrix, find_coords
 
 def reduce_image(photons):
-    tess = get_tess(photons)
-    derot_image = derot_tess(tess)
+    if len(photons) == 0:
+        derot_image = np.zeros((mp.array_size))
+    else:
+        tess = get_tess(photons)
+        derot_image = derot_tess(tess)
     return derot_image
 
 def find_loc(astro_dict, derot_image, verbose=False):
