@@ -7,7 +7,7 @@ import copy
 from pcd.input import make_input
 from pcd.train import train
 from pcd.predict import predict
-from pcd.article_plots import get_reduced_images, rad_snr
+from pcd.article_plots import get_reduced_images, traintest_snrs
 from pcd.config.config import config
 
 # def step_performance():
@@ -124,7 +124,7 @@ def input_performance():
             config['data']['test_frac'] = num_test/config['data']['num_indata']
             train(verbose=True)
 
-        snrs[n] = rad_snr()
+        snrs[n] = traintest_snrs()
 
     plt.plot(num_train, snrs[:,0])
     plt.plot(num_train, snrs[:,1])

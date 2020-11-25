@@ -353,8 +353,8 @@ def contrast_curve():
         # grid(imlist, logZ=True, vlim=(1,60), show=False)
     # plt.show(block=True)
 
-def rad_snr():
-    """ image processing and snr calc for paper train data tests """
+def traintest_snrs():
+    """ image loading analysis with separation into train/test """
     alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
     snrs = np.zeros(allsteps)
