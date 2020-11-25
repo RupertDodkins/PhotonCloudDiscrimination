@@ -30,10 +30,6 @@ def calc_snr(planet_photons, astro_dict, plot=False):
     planet_loc = find_loc(astro_dict, derot_image)
 
     snr = pix_snr_loc(derot_image, planet_loc - mp.array_size // 2, config['data']['fwhm'], verbose=True)[0]
-    # with open(config['train']['snr_data'], 'ab') as handle:
-    #     pickle.dump(snr_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    # with open(config['train']['images'], 'ab') as handle:
-    #     pickle.dump(derot_image, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     if plot:
         fig = plt.figure(figsize=(12, 6))
