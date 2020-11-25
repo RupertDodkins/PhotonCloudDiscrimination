@@ -152,6 +152,7 @@ def plot_snr_trends(start=0, end=-1):
     plt.show()
 
 def plot_images(start=0, end=-1):
+    # config['train']['pt_outputs'] = '/work/dodkins/PCD_data/201124/pt_num_13.pkl'
     alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
 
@@ -165,10 +166,10 @@ def plot_images(start=0, end=-1):
         derot_image = reduce_image(planet_photons)
         images.append(derot_image)
 
-    fig, axes = utils.init_grid(rows=6, cols=6, figsize=(16,8))
+    fig, axes = utils.init_grid(rows=1, cols=5, figsize=(16,8))
     axes = axes.flatten()
     num_in = int(config['data']['num_indata'])
-    start_loc = int(num_in*(1-config['data']['test_frac']))+1
+    start_loc = int(num_in*(1-config['data']['test_frac']))
     for im, image in enumerate(images[start_loc::num_in]):
         axes[im].imshow(image, origin='lower')
     plt.tight_layout()

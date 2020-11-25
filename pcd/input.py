@@ -616,11 +616,11 @@ def make_input(config):
 
 def make_eval():
     """ Creates a single input file with what you need for hyperparam tests for example """
-    config['data']['num_indata'] = 3
+    config['data']['num_indata'] = 9
     config['data']['test_frac'] = 1
-    config['data']['contrasts'] = -3
-    config['data']['angles'] = [0,120,240]
-    config['data']['lods'] = [2,4,6]
+    config['data']['contrasts'] = '(-4,-2.05)'
+    config['data']['angles'] = '(0,360)'
+    config['data']['lods'] = '(2,7)'
     config['trainfiles'] = []
     config['testfiles'] = [os.path.join(config['working_dir'], f'testfile_{id}.h5') for id in
                            range(config['data']['num_indata'])]
@@ -629,5 +629,5 @@ def make_eval():
 
 
 if __name__ == "__main__":
-    make_input(config)
-    # make_eval()
+    # make_input(config)
+    make_eval()

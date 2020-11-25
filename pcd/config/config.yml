@@ -16,9 +16,9 @@ model: minkowski  # minkowski  # lightgbm  #
 savepath: !join [*WDIR, 'test95.pth']
 
 data:
-  num_indata: 40  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
+  num_indata: 45  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below
   null_frac: 0.  # num of input data that are null (no planet photons)
-  test_frac: 0.1
+  test_frac: 0.2
   aug_ratio: 39  # For every 1 medis input duplicate and rotate it {aug_ratio} times
   medis_config: "medis_params.py"
   angles: (0,360)  #(0,360)  # int: duplicated {num_planet} times, list: no further processing, tuple: limits for random selection
