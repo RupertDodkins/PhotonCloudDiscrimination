@@ -615,7 +615,7 @@ def make_input(config):
         shutil.copyfile(repo_config, workingdir_config)
 
 def make_eval():
-    """ Creates a single input file with what you need for hyperparam tests for example """
+    """ Creates a single input file with what you need for hyper-params tests for example """
     config['data']['num_indata'] = 9
     config['data']['test_frac'] = 1
     config['data']['contrasts'] = '(-4,-2.05)'
