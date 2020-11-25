@@ -75,13 +75,14 @@ from pcd.config.config import config
 #     plt.show()
 
 def step_performance():
-    steps = [1, 2, 4, 10, 20, 40]
+    steps = np.arange(1,12)
     savepth = 'step_{}.pth'
     pt_out = 'pt_step_{}.pkl'
-    snrs = np.zeros((len(steps)))
+    snrs = np.zeros((len(steps),4))
 
     for s in range(len(steps)):
         config['savepath'] = config['working_dir']+savepth.format(steps[s])
+        config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(steps[s])
 
         if not os.path.exists(config['savepath']):
             if s>0:
@@ -92,24 +93,27 @@ def step_performance():
             else:
                 config['train']['max_epoch'] = steps[s]
             train(verbose=True)
-        config['train']['pt_outputs'] = config['working_dir']+pt_out.format(steps[s])
-        if not os.path.exists(config['train']['pt_outputs']):
-            predict()
 
         snrs[s] = snr_stats()
 
-    plt.plot(steps, snrs)
-    plt.xlabel('Num input')
-    plt.ylabel('Contrast')
-    plt.yscale('log')
+    plot_hype(steps, snrs, 'Num epochs')
+
+def plot_hype(x, snrs, xtitle=None):
+    snrs[np.isnan(snrs)] = 0
+    plt.errorbar(x, snrs[:,0], label='test') #, yerr=snrs[:,1]
+    plt.errorbar(x, snrs[:,1], label='train')#, yerr=snrs[:,3]
+    plt.legend()
+    if xtitle:
+        plt.xlabel(xtitle)
+    plt.ylabel('SNR')
     plt.legend()
     plt.show()
 
 def input_performance():
-    # num_train = np.arange(1,int(config['data']['num_indata']*(1-config['data']['test_frac'])),2)
-    num_train = np.arange(1,28,2)
-    savepth = 'second_pt_num/num_{}.pth'
-    pt_out = 'second_pt_num/pt_num_{}.pkl'
+    num_train = np.arange(1,int(config['data']['num_indata']*(1-config['data']['test_frac'])),2)
+    # num_train = np.arange(1,28,2)
+    savepth = 'num_{}.pth'  #second_pt_num
+    pt_out = 'pt_num_{}.pkl'  #second_pt_num/
     snrs = np.zeros((len(num_train),4))
     all_train = copy.copy(config['trainfiles'])
     num_test = int(copy.copy(config['data']['num_indata']*config['data']['test_frac']))
@@ -127,15 +131,7 @@ def input_performance():
 
         snrs[n] = snr_stats()
 
-    snrs[np.isnan(snrs)] = 0
-    plt.errorbar(num_train, snrs[:,0], label='test') #, yerr=snrs[:,1]
-    plt.errorbar(num_train, snrs[:,1], label='train')#, yerr=snrs[:,3]
-    plt.legend()
-    plt.xlabel('Num input')
-    plt.ylabel('SNR')
-    # plt.yscale('log')
-    plt.legend()
-    plt.show()
+    plot_hype(num_train, snrs, 'Num input')
 
 def blob_ROC_curves():
     predict()
@@ -147,5 +143,5 @@ if __name__ == '__main__':
     if not os.path.exists(config['working_dir']):
         make_input(config)
 
-    # step_performance()
-    input_performance()
+    step_performance()
+    # input_performance()
