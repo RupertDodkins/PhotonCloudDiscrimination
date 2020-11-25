@@ -10,6 +10,24 @@ from pcd.predict import predict
 from pcd.article_plots import get_reduced_images, snr_stats
 from pcd.config.config import config
 
+def points_performance():
+    num_points = config['num_point']*np.array([1e-4,1e-2,1])
+    savepth = 'cont_{}.pth'
+    pt_out = 'pt_cont_{}.pkl'
+    snrs = np.zeros((len(num_points),4))
+
+    for p, point in enumerate(num_points):
+        config['savepath'] = config['working_dir']+savepth.format(point)
+        config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(point)
+
+        if not os.path.exists(config['savepath']):
+            config['train']['max_epoch'] = 2
+            config['data']['degrade_factor'] = int(config['num_point']/point)
+            train(verbose=False)
+        snrs[p] = snr_stats()
+
+    plot_hype(num_points, snrs, 'Num points')
+
 def contrast_performance():
     contrasts = [-2,-3,-4]
     savepth = 'cont_{}.pth'
@@ -115,6 +133,7 @@ if __name__ == '__main__':
     if not os.path.exists(config['working_dir']):
         make_input(config)
 
-    contrast_performance()
+    points_performance()
+    # contrast_performance()
     # step_performance()
     # input_performance()

@@ -549,8 +549,8 @@ class MedisParams():
 def load_h5(h5_filename, full_output=False):
     print(h5_filename)
     with h5py.File(h5_filename, 'r') as f:
-        data = f['data'][:]
-        label = f['label'][:]
+        data = f['data'][:][::config['data']['degrade_factor']]
+        label = f['label'][:][::config['data']['degrade_factor']]
         smpw = f['smpw'][:]
         try:
             contrast = f.attrs['contrast']
