@@ -5,74 +5,42 @@ import shutil
 import copy
 
 from pcd.input import make_input
-from pcd.train import train
+from pcd.train import train, load_dataset
 from pcd.predict import predict
 from pcd.article_plots import get_reduced_images, snr_stats
 from pcd.config.config import config
 
-# def step_performance():
-#     """
-#     Must first create input files with input.py. config for making the input data is in PCD_data/201021
-#
-#     :return:
-#     """
-#
-#     # config['testfiles'] = config['testfiles'][-1:]  # just select first example
-#     config['testfiles'] = config['testfiles'][:1]
-#
-#     steps = [1,2,4,10,20,40]
-#     fwhm = 5
-#     fhqm = fwhm/2
-#     lods = range(1,7)
-#     savepth = 'step_{}.pth'
-#     pt_out = 'pt_step_{}.pkl'
-#
-#     lod_conts = np.zeros((len(lods),len(steps)))
-#     rad = np.arange(73)
-#
-#     thruput = np.array([0.01,1,2,2,3,3])/3.
-#     for s in range(len(steps)):
-#
-#         # create model saves
-#         config['savepath'] = config['working_dir']+savepth.format(steps[s])
-#         if not os.path.exists(config['savepath']):
-#             if s>0:
-#                 prevpth = config['working_dir'] + savepth.format(steps[s-1])
-#                 print(f"starting training for {config['savepath']} with {prevpth}")
-#                 shutil.copy(prevpth, config['savepath'])
-#                 config['train']['max_epoch'] = steps[s] - steps[s-1]
-#             else:
-#                 config['train']['max_epoch'] = steps[s]
-#             train(verbose=True)
-#         config['train']['pt_outputs'] = config['working_dir']+pt_out.format(steps[s])
-#         if not os.path.exists(config['train']['pt_outputs']):
-#             predict()
-#
-#         reduced_images = get_reduced_images(ind=-1, plot=False)
-#         PCDPCA = reduced_images[1, 2]
-#         star_derot = reduced_images[0, 0]
-#
-#         # get contrast
-#         std = noise_per_annulus(PCDPCA, 1, fwhm)[0]
-#         full_thru = noise_per_annulus(star_derot, 1, fwhm, mean_per_ann=True)[0]
-#         sensitivity = std / (full_thru.max() * thruput[s])
-#         sensitivity[sensitivity==0] = 1
-#         print(thruput[s], 'thru')
-#         plt.plot(sensitivity)
-#
-#         # measure contrast at 3 and 6L/D
-#         for id, lod in enumerate(lods):
-#             lod_ind = np.where((rad > lod*fwhm - fhqm) & (rad < lod*fwhm + fhqm))
-#             lod_conts[id,s] = np.mean(sensitivity[lod_ind])
-#     plt.yscale('log')
-#     plt.figure()
-#     for il, lod_cont in enumerate(lod_conts):
-#         plt.plot(steps, lod_cont, label=f"{lods[il]}")
-#     plt.xlabel('Training epochs')
-#     plt.ylabel('Contrast')
-#     plt.yscale('log')
-#     plt.legend()
-#     plt.show()
+def contrast_performance():
+    contrasts = [-2,-3,-4]
+    savepth = 'cont_{}.pth'
+    pt_out = 'pt_cont_{}.pkl'
+    snrs = np.zeros((len(contrasts),4))
+
+    file_contrasts = []
+    all_train = np.array(copy.copy(config['trainfiles']))
+    num_test = int(copy.copy(config['data']['num_indata'] * config['data']['test_frac']))
+
+    for i in range(int(config['data']['num_indata'] * (1 - config['data']['test_frac']))):
+        _, _, astro_dict = load_dataset(config['trainfiles'][i])
+        file_contrasts.append(astro_dict['contrast'])
+
+    print(file_contrasts)
+    file_bools = [np.logical_and(cont-0.5<=np.log10(file_contrasts), np.log10(file_contrasts)<cont+0.5) for cont in contrasts]
+
+    for c, cont in enumerate(contrasts):
+        config['savepath'] = config['working_dir']+savepth.format(cont)
+        config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(cont)
+
+        if not os.path.exists(config['savepath']):
+            config['trainfiles'] = all_train[file_bools[c]]
+            config['train']['max_epoch'] = 2
+            config['data']['num_indata'] = len(config['trainfiles']) + num_test
+            config['data']['test_frac'] = num_test/config['data']['num_indata']
+            train(verbose=False)
+
+        snrs[c] = snr_stats()
+
+    plot_hype(contrasts, snrs, 'Input contrast')
 
 def step_performance():
     steps = np.arange(1,12)
@@ -98,10 +66,14 @@ def step_performance():
 
     plot_hype(steps, snrs, 'Num epochs')
 
-def plot_hype(x, snrs, xtitle=None):
+def plot_hype(x, snrs, xtitle=None, plot_errs=True):
     snrs[np.isnan(snrs)] = 0
-    plt.errorbar(x, snrs[:,0], label='test') #, yerr=snrs[:,1]
-    plt.errorbar(x, snrs[:,1], label='train')#, yerr=snrs[:,3]
+    if plot_errs:
+        test_yerr, train_yerr = snrs[:, 1], snrs[:, 3]
+    else:
+        test_yerr, train_yerr = None, None
+    plt.errorbar(x, snrs[:,0], yerr=test_yerr, label='test') #,
+    plt.errorbar(x, snrs[:,1], yerr=train_yerr, label='train')#,
     plt.legend()
     if xtitle:
         plt.xlabel(xtitle)
@@ -143,5 +115,6 @@ if __name__ == '__main__':
     if not os.path.exists(config['working_dir']):
         make_input(config)
 
-    step_performance()
+    contrast_performance()
+    # step_performance()
     # input_performance()
