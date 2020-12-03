@@ -353,7 +353,7 @@ def contrast_curve():
         # grid(imlist, logZ=True, vlim=(1,60), show=False)
     # plt.show(block=True)
 
-def snr_stats():
+def snr_stats(plot_images=False):
     """ image loading analysis with separation into train/test """
     alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
@@ -364,13 +364,14 @@ def snr_stats():
         true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
         tp_list, fn_list, fp_list, tn_list = get_bin_measures(true_label, pred_label, sum=False)
         planet_photons = np.concatenate((input_data[tp_list], input_data[fp_list]), axis=0)
-        snr = calc_snr(planet_photons, astro_dict)
+        snr = calc_snr(planet_photons, astro_dict, plot=plot_images)
         snrs[step] = snr
         trains[step] = train
 
     test_snrs = snrs[trains == 0]
     train_snrs = snrs[trains == 1]
 
+    print(snrs, test_snrs.mean(), train_snrs.mean(), test_snrs.std()/np.sqrt(len(test_snrs)), train_snrs.std()/np.sqrt(len(train_snrs)), 'snrs')
     return test_snrs.mean(), train_snrs.mean(), test_snrs.std()/np.sqrt(len(test_snrs)), train_snrs.std()/np.sqrt(len(train_snrs))
 
 def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, verbose=True):

@@ -37,7 +37,7 @@ train:
   gpu: 1
   num_point: *PN
   batch_size: 3  # todo use
-  max_epoch: 100
+  max_epoch: 5
   wd: 0.
   log_dir: *WDIR
   data_dir: *WDIR
