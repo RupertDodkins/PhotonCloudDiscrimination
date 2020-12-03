@@ -7,14 +7,15 @@ import copy
 from pcd.input import make_input
 from pcd.train import train, load_dataset
 from pcd.predict import predict
-from pcd.article_plots import get_reduced_images, snr_stats
+from pcd.article_plots import get_reduced_images, analyze_saved
 from pcd.config.config import config
+from pcd.utils import init_grid
 
 def points_performance():
     num_points = config['num_point']*np.array([1e-4,0.1,0.25,0.5,0.75,1])
     savepth = 'points_{}.pth'
     pt_out = 'pt_points_{}.pkl'
-    snrs = np.zeros((len(num_points),4))
+    stats = np.zeros((len(num_points),6,2))
 
     for p, point in enumerate(num_points):
         config['savepath'] = config['working_dir']+savepth.format(point)
@@ -24,15 +25,15 @@ def points_performance():
             config['train']['max_epoch'] = 4
             config['data']['degrade_factor'] = config['num_point']/point
             train(verbose=False)
-        snrs[p] = snr_stats(plot_images=False)
+        stats[p] = analyze_saved(plot_images=False)
 
-    plot_hype(num_points, snrs, 'Num points')
+    plot_hype(num_points, stats, 'Num points')
 
 def contrast_performance():
     contrasts = [-2,-3,-4]
     savepth = 'cont_{}.pth'
     pt_out = 'pt_cont_{}.pkl'
-    snrs = np.zeros((len(contrasts),4))
+    stats = np.zeros((len(contrasts),6,2))
 
     file_contrasts = []
     all_train = np.array(copy.copy(config['trainfiles']))
@@ -56,15 +57,15 @@ def contrast_performance():
             config['data']['test_frac'] = num_test/config['data']['num_indata']
             train(verbose=False)
 
-        snrs[c] = snr_stats()
+        stats[c] = analyze_saved()
 
-    plot_hype(contrasts, snrs, 'Input contrast')
+    plot_hype(contrasts, stats, 'Input contrast')
 
 def epoch_performance():
     epochs = np.arange(1,5)
-    savepth = 'epoch_{}.pth'
-    pt_out = 'pt_epoch_{}.pkl'
-    snrs = np.zeros((len(epochs),4))
+    savepth = 'epochs/step_{}.pth'
+    pt_out = 'epochs/pt_step_{}.pkl'
+    stats = np.zeros((len(epochs),6,2))
 
     for s in range(len(epochs)):
         config['savepath'] = config['working_dir']+savepth.format(epochs[s])
@@ -80,31 +81,16 @@ def epoch_performance():
                 config['train']['max_epoch'] = epochs[s]
             train(verbose=True)
 
-        snrs[s] = snr_stats()
+        stats[s] = analyze_saved()
 
-    plot_hype(epochs, snrs, 'Num epochs')
-
-def plot_hype(x, snrs, xtitle=None, plot_errs=True):
-    snrs[np.isnan(snrs)] = 0
-    if plot_errs:
-        test_yerr, train_yerr = snrs[:, 2], snrs[:, 3]
-    else:
-        test_yerr, train_yerr = None, None
-    plt.errorbar(x, snrs[:,0], yerr=test_yerr, label='test') #,
-    plt.errorbar(x, snrs[:,1], yerr=train_yerr, label='train')#,
-    plt.legend()
-    if xtitle:
-        plt.xlabel(xtitle)
-    plt.ylabel('SNR')
-    plt.legend()
-    plt.show()
+    plot_hype(epochs, stats, 'Num epochs')
 
 def input_performance():
     num_train = np.arange(1,int(config['data']['num_indata']*(1-config['data']['test_frac'])),2)
     num_train = np.arange(1,36,4)
     savepth = 'num_{}.pth'  #second_pt_num
     pt_out = 'pt_num_{}.pkl'  #second_pt_num/
-    snrs = np.zeros((len(num_train),4))
+    stats = np.zeros((len(num_train),6,2))
     all_train = copy.copy(config['trainfiles'])
     num_test = int(copy.copy(config['data']['num_indata']*config['data']['test_frac']))
 
@@ -119,9 +105,28 @@ def input_performance():
             config['data']['test_frac'] = num_test/config['data']['num_indata']
             train(verbose=True)
 
-        snrs[n] = snr_stats()
+        stats[n] = analyze_saved()
 
-    plot_hype(num_train, snrs, 'Num input')
+    plot_hype(num_train, stats, 'Num input')
+
+def plot_hype(x, stats, xtitle):
+    stats[np.isnan(stats)] = 0
+
+    metric_types = ['True Positive', 'True Negative', 'SNR']
+    fig, axes = init_grid(rows=len(metric_types), cols=1, figsize=(9, 16))
+    axes = axes.flatten()
+
+    for im, (ax, metric) in enumerate(zip(axes, metric_types)):
+        istat = im * 2
+        ax.errorbar(x, stats[:,istat,0], yerr=stats[:,istat,1], label='test') #,
+        ax.errorbar(x, stats[:,istat+1,0], yerr=stats[:,istat+1,1], label='train') #,
+        ax.set_ylabel(metric)
+        ax.set_xlabel(xtitle)
+
+    ax.legend()
+    plt.tight_layout()
+    plt.show()
+
 
 def blob_ROC_curves():
     predict()

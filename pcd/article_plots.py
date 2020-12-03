@@ -353,12 +353,14 @@ def contrast_curve():
         # grid(imlist, logZ=True, vlim=(1,60), show=False)
     # plt.show(block=True)
 
-def snr_stats(plot_images=False):
+def analyze_saved(plot_images=False):
     """ image loading analysis with separation into train/test """
     alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
     snrs = np.zeros(allsteps)
     trains = np.zeros(allsteps)
+    tps = np.zeros(allsteps)
+    tns = np.zeros(allsteps)
 
     for step in range(allsteps):
         true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
@@ -368,11 +370,18 @@ def snr_stats(plot_images=False):
         snrs[step] = snr
         trains[step] = train
 
-    test_snrs = snrs[trains == 0]
-    train_snrs = snrs[trains == 1]
+        tp_amount, fn_amount, fp_amount, tn_amount = np.sum([tp_list, fn_list, fp_list, tn_list], axis=1)
+        tps[step] = tp_amount / (tp_amount + fn_amount)
+        tns[step] = tn_amount / (tn_amount + fp_amount)
 
-    print(snrs, test_snrs.mean(), train_snrs.mean(), test_snrs.std()/np.sqrt(len(test_snrs)), train_snrs.std()/np.sqrt(len(train_snrs)), 'snrs')
-    return test_snrs.mean(), train_snrs.mean(), test_snrs.std()/np.sqrt(len(test_snrs)), train_snrs.std()/np.sqrt(len(train_snrs))
+    test_snrs, train_snrs = snrs[trains == 0], snrs[trains == 1]
+    test_tps, train_tps  = tps[trains == 0], tps[trains == 1]
+    test_tns, train_tns = tns[trains == 0], tns[trains == 1]
+
+    metric_list = [test_tps, train_tps, test_tns, train_tns, test_snrs, train_snrs]
+    metric_tups = [(metric.mean(), metric.std() / np.sqrt(len(metric))) for metric in metric_list]
+
+    return metric_tups
 
 def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, verbose=True):
     if not config['train']['roc_probabilities']:
