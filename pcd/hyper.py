@@ -11,9 +11,9 @@ from pcd.article_plots import get_reduced_images, snr_stats
 from pcd.config.config import config
 
 def points_performance():
-    num_points = config['num_point']*np.array([1e-4,1e-2,1])
-    savepth = 'cont_{}.pth'
-    pt_out = 'pt_cont_{}.pkl'
+    num_points = config['num_point']*np.array([1e-4,0.1,0.25,0.5,0.75,1])
+    savepth = 'points_{}.pth'
+    pt_out = 'pt_points_{}.pkl'
     snrs = np.zeros((len(num_points),4))
 
     for p, point in enumerate(num_points):
@@ -21,10 +21,10 @@ def points_performance():
         config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(point)
 
         if not os.path.exists(config['savepath']):
-            config['train']['max_epoch'] = 2
-            config['data']['degrade_factor'] = int(config['num_point']/point)
+            config['train']['max_epoch'] = 4
+            config['data']['degrade_factor'] = config['num_point']/point
             train(verbose=False)
-        snrs[p] = snr_stats()
+        snrs[p] = snr_stats(plot_images=False)
 
     plot_hype(num_points, snrs, 'Num points')
 
@@ -60,34 +60,34 @@ def contrast_performance():
 
     plot_hype(contrasts, snrs, 'Input contrast')
 
-def step_performance():
-    steps = np.arange(1,12)
-    savepth = 'step_{}.pth'
-    pt_out = 'pt_step_{}.pkl'
-    snrs = np.zeros((len(steps),4))
+def epoch_performance():
+    epochs = np.arange(1,5)
+    savepth = 'epoch_{}.pth'
+    pt_out = 'pt_epoch_{}.pkl'
+    snrs = np.zeros((len(epochs),4))
 
-    for s in range(len(steps)):
-        config['savepath'] = config['working_dir']+savepth.format(steps[s])
-        config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(steps[s])
+    for s in range(len(epochs)):
+        config['savepath'] = config['working_dir']+savepth.format(epochs[s])
+        config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(epochs[s])
 
         if not os.path.exists(config['savepath']):
             if s>0:
-                prevpth = config['working_dir'] + savepth.format(steps[s-1])
+                prevpth = config['working_dir'] + savepth.format(epochs[s-1])
                 print(f"starting training for {config['savepath']} with {prevpth}")
                 shutil.copy(prevpth, config['savepath'])
-                config['train']['max_epoch'] = steps[s] - steps[s-1]
+                config['train']['max_epoch'] = epochs[s] - epochs[s-1]
             else:
-                config['train']['max_epoch'] = steps[s]
+                config['train']['max_epoch'] = epochs[s]
             train(verbose=True)
 
         snrs[s] = snr_stats()
 
-    plot_hype(steps, snrs, 'Num epochs')
+    plot_hype(epochs, snrs, 'Num epochs')
 
 def plot_hype(x, snrs, xtitle=None, plot_errs=True):
     snrs[np.isnan(snrs)] = 0
     if plot_errs:
-        test_yerr, train_yerr = snrs[:, 1], snrs[:, 3]
+        test_yerr, train_yerr = snrs[:, 2], snrs[:, 3]
     else:
         test_yerr, train_yerr = None, None
     plt.errorbar(x, snrs[:,0], yerr=test_yerr, label='test') #,
@@ -101,7 +101,7 @@ def plot_hype(x, snrs, xtitle=None, plot_errs=True):
 
 def input_performance():
     num_train = np.arange(1,int(config['data']['num_indata']*(1-config['data']['test_frac'])),2)
-    # num_train = np.arange(1,28,2)
+    num_train = np.arange(1,36,4)
     savepth = 'num_{}.pth'  #second_pt_num
     pt_out = 'pt_num_{}.pkl'  #second_pt_num/
     snrs = np.zeros((len(num_train),4))
@@ -113,7 +113,7 @@ def input_performance():
         config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(num_train[n])
 
         if not os.path.exists(config['savepath']):
-            config['train']['max_epoch'] = 2 # int(np.round(num_in.max()/num_in[n]))
+            # config['train']['max_epoch'] = 2 # int(np.round(num_in.max()/num_in[n]))
             config['trainfiles'] = all_train[:num_train[n]]
             config['data']['num_indata'] = num_train[n] + num_test
             config['data']['test_frac'] = num_test/config['data']['num_indata']
@@ -133,7 +133,7 @@ if __name__ == '__main__':
     if not os.path.exists(config['working_dir']):
         make_input(config)
 
-    points_performance()
+    # points_performance()
     # contrast_performance()
-    # step_performance()
+    epoch_performance()
     # input_performance()

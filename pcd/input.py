@@ -549,9 +549,14 @@ class MedisParams():
 def load_h5(h5_filename, full_output=False):
     print(h5_filename)
     with h5py.File(h5_filename, 'r') as f:
-        data = f['data'][:][::config['data']['degrade_factor']]
-        label = f['label'][:][::config['data']['degrade_factor']]
+        if config['data']['degrade_factor'] != 1:
+            subsample = random.sample(range(config['num_point']), int(config['num_point'] / config['data']['degrade_factor']))
+        else:
+            subsample = ...
+        data = f['data'][:][:,subsample]
+        label = f['label'][:][:,subsample]
         smpw = f['smpw'][:]
+        print(config['data']['degrade_factor'], data.shape)
         try:
             contrast = f.attrs['contrast']
             loc = f.attrs['loc']
