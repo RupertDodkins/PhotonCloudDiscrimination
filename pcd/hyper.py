@@ -13,8 +13,8 @@ from pcd.utils import init_grid
 
 def points_performance():
     num_points = config['num_point']*np.array([1e-4,0.1,0.25,0.5,0.75,1])
-    savepth = 'points_{}.pth'
-    pt_out = 'pt_points_{}.pkl'
+    savepth = 'points4epoch/points_{}.pth'
+    pt_out = 'points4epoch/pt_points_{}.pkl'
     stats = np.zeros((len(num_points),6,2))
 
     for p, point in enumerate(num_points):
@@ -109,38 +109,33 @@ def input_performance():
 
     plot_hype(num_train, stats, 'Num input')
 
-def plot_hype(x, stats, xtitle):
+def plot_hype(x, stats, xtitle, showylabel=True):
     stats[np.isnan(stats)] = 0
 
     metric_types = ['True Positive', 'True Negative', 'SNR']
-    fig, axes = plt.subplots(nrows=len(metric_types), ncols=1, sharex=True, figsize=(5, 16))
+    fig, axes = plt.subplots(nrows=len(metric_types), ncols=1, sharex=True, figsize=(3, 16))
     axes = axes.flatten()
 
     for im, (ax, metric) in enumerate(zip(axes, metric_types)):
         istat = im * 2
         ax.errorbar(x, stats[:,istat,0], yerr=stats[:,istat,1], label='test') #,
         ax.errorbar(x, stats[:,istat+1,0], yerr=stats[:,istat+1,1], label='train') #,
-        ax.set_ylabel(metric)
         ax.tick_params(axis="x", direction="inout")
+        if showylabel:
+            ax.set_ylabel(metric)
 
     ax.set_xlabel(xtitle)
     ax.legend()
     plt.tight_layout()
-    plt.subplots_adjust(hspace=.0, bottom=.08)
+    left = 0.18 if showylabel else 0.12
+    plt.subplots_adjust(hspace=.0, bottom=.08, left=left)
     plt.show()
-
-
-def blob_ROC_curves():
-    predict()
-    reduced_images = get_reduced_images(ind=-1, plot=False)
-    PCDPCA = reduced_images[1, 2]
-    star_derot = reduced_images[0, 0]
 
 if __name__ == '__main__':
     if not os.path.exists(config['working_dir']):
         make_input(config)
 
     # points_performance()
-    # contrast_performance()
-    epoch_performance()
+    contrast_performance()
+    # epoch_performance()
     # input_performance()
