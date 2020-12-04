@@ -11,6 +11,24 @@ from pcd.article_plots import get_reduced_images, analyze_saved
 from pcd.config.config import config
 from pcd.utils import init_grid
 
+def weights_performance():
+    weight_ratios = [0.01, 0.1, 1, 10]
+    savepth = 'weights_{}.pth'
+    pt_out = 'pt_weights_{}.pkl'
+    stats = np.zeros((len(weight_ratios),6,2))
+
+    for r, ratio in enumerate(weight_ratios):
+        config['savepath'] = config['working_dir']+savepth.format(ratio)
+        config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(ratio)
+
+        if not os.path.exists(config['savepath']):
+            config['train']['max_epoch'] = 2
+            config['weight_ratio'] = ratio
+            train(verbose=False)
+        stats[r] = analyze_saved(plot_images=False)
+
+    plot_hype(weight_ratios, stats, 'Num points')
+
 def points_performance():
     num_points = config['num_point']*np.array([1e-4,0.1,0.25,0.5,0.75,1])
     savepth = 'points4epoch/points_{}.pth'
@@ -62,9 +80,9 @@ def contrast_performance():
     plot_hype(contrasts, stats, 'Input contrast')
 
 def epoch_performance():
-    epochs = np.arange(1,12,1)
-    savepth = 'epochstest/epoch_{}.pth'
-    pt_out = 'epochstest/pt_epoch_{}.pkl'
+    epochs = np.arange(1,4,1)
+    savepth = 'epochsnotrack/epoch_{}.pth'
+    pt_out = 'epochsnotrack/pt_epoch_{}.pkl'
     stats = np.zeros((len(epochs),6,2))
 
     for s in range(len(epochs)):
@@ -113,7 +131,8 @@ def plot_hype(x, stats, xtitle, showylabel=True):
     stats[np.isnan(stats)] = 0
 
     metric_types = ['True Positive', 'True Negative', 'SNR']
-    fig, axes = plt.subplots(nrows=len(metric_types), ncols=1, sharex=True, figsize=(3, 16))
+    xsize = 3.3 if showylabel: else 3
+    fig, axes = plt.subplots(nrows=len(metric_types), ncols=1, sharex=True, figsize=(xsize, 16))
     axes = axes.flatten()
 
     for im, (ax, metric) in enumerate(zip(axes, metric_types)):
@@ -136,6 +155,7 @@ if __name__ == '__main__':
         make_input(config)
 
     # points_performance()
-    contrast_performance()
+    # contrast_performance()
     # epoch_performance()
     # input_performance()
+    weights_performance()

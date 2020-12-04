@@ -58,7 +58,7 @@ def train(verbose=True):
     net = net.to(device)
 
     # loss and network
-    criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1], device=device))
+    criterion = nn.CrossEntropyLoss(weight=torch.tensor([config['weight_ratio'],1], device=device))
 
     if os.path.exists(config['savepath']):
         print(f"Loading neural net {config['savepath']}")
