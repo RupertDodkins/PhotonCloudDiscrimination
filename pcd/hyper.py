@@ -1,3 +1,22 @@
+""" todo transition to this format
+
+class weights():
+    def __init__(self):
+        self.xvals = [1e-6, 1e-5, 1e-4, 0.001, 0.01, 1.]
+        self.name = __name__
+
+    def update_config(self, val):
+        config['weight_ratio'] = val
+
+def test_metric(metric):
+    for i, val in enumerate(metric.vals)
+        metric.update_config(val)
+        train()
+    plot_hype(metric.vals, stats, metric.name, logx=True)
+
+test_metric(weights)
+"""
+
 import os
 import matplotlib.pyplot as plt
 import numpy as np
