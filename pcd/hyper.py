@@ -28,6 +28,39 @@ from pcd.train import train, load_dataset
 from pcd.article_plots import analyze_saved
 from pcd.config.config import config
 
+def rate_performance(nreps=3):
+    names  ='rates'
+    rates = [1e-6, 1e-4, 1e-2]
+    config['train']['max_epoch'] = 5
+
+    reps = np.zeros((nreps, len(rates), 6, 2))
+    savepth = names + '_{}.pth'
+    pt_out = names + '_{}.pkl'
+    orig_wd = copy.copy(config['working_dir'])
+
+    for i in range(nreps):
+        stats = np.zeros((len(rates), 6, 2))
+
+        config['working_dir'] = os.path.join(orig_wd, f'{names}{i}')
+        if not os.path.exists(config['working_dir']):
+            os.makedirs(config['working_dir'])
+
+        for r, rate in enumerate(rates):
+            config['savepath'] = os.path.join(config['working_dir'], savepth.format(rate))
+            config['train']['pt_outputs'] = os.path.join(config['working_dir'], pt_out.format(rate))
+
+            if not os.path.exists(config['savepath']):
+                config['learning_rate'] = rate
+                train(verbose=False)
+
+            stats[r] = analyze_saved(plot_images=False)
+        reps[i] = stats
+
+    means = np.mean(reps[:, :, :, 0], axis=0)
+    errs = np.sqrt(np.sum(reps[:, :, :, 1] ** 2, axis=0)) / nreps
+    stats = np.dstack((means, errs))
+    plot_hype(rates, stats, 'Learning Rate', logx=True)
+
 def weights_performance(nreps=3):
     weight_ratios = [1e-6, 1e-5, 1e-4, 0.001, 0.01, 1.]
     reps = np.zeros((nreps,len(weight_ratios),6,2))
@@ -51,7 +84,7 @@ def weights_performance(nreps=3):
     means = np.mean(reps[:,:,:,0], axis=0)
     errs = np.sqrt(np.sum(reps[:,:,:,1]**2, axis=0))/nreps
     stats = np.dstack((means, errs))
-    plot_hype(weight_ratios, stats, 'Num points', logx=True)
+    plot_hype(weight_ratios, stats, 'Weight ratio', logx=True)
 
 def points_performance():
     num_points = config['num_point']*np.array([1e-4,0.1,0.25,0.5,0.75,1])
@@ -105,8 +138,8 @@ def contrast_performance():
 
 def epoch_performance():
     epochs = np.arange(1,4,1)
-    savepth = 'epochsnotrack/epoch_{}.pth'
-    pt_out = 'epochsnotrack/pt_epoch_{}.pkl'
+    savepth = 'epochsnotrack2/epoch_{}.pth'
+    pt_out = 'epochsnotrack2/pt_epoch_{}.pkl'
     stats = np.zeros((len(epochs),6,2))
 
     for s in range(len(epochs)):
@@ -125,33 +158,48 @@ def epoch_performance():
 
         stats[s] = analyze_saved()
 
-    plot_hype(epochs, stats, 'Num epochs')
+    plot_hype(epochs, stats, 'Num epochs', showylabel=True)
 
-def input_performance():
-    num_train = np.arange(1,int(config['data']['num_indata']*(1-config['data']['test_frac'])),2)
-    num_train = np.arange(1,36,4)
-    savepth = 'num_{}.pth'  #second_pt_num
-    pt_out = 'pt_num_{}.pkl'  #second_pt_num/
-    stats = np.zeros((len(num_train),6,2))
+def input_performance(nreps=1):
+    # num_train = np.arange(1,int(config['data']['num_indata']*(1-config['data']['test_frac'])),2)
+    inputs = np.arange(1,36,4)
+    names = 'input'
+    config['train']['max_epoch'] = 2
+
+    reps = np.zeros((nreps, len(inputs), 6, 2))
+    savepth = names + '_{}.pth'
+    pt_out = names + '_{}.pkl'
+    orig_wd = copy.copy(config['working_dir'])
+
     all_train = copy.copy(config['trainfiles'])
-    num_test = int(copy.copy(config['data']['num_indata']*config['data']['test_frac']))
+    num_test = int(copy.copy(config['data']['num_indata'] * config['data']['test_frac']))
 
-    for n in range(len(num_train)):
-        config['savepath'] = config['working_dir'] + savepth.format(num_train[n])
-        config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(num_train[n])
+    for i in range(nreps):
+        stats = np.zeros((len(inputs),6,2))
 
-        if not os.path.exists(config['savepath']):
-            # config['train']['max_epoch'] = 2 # int(np.round(num_in.max()/num_in[n]))
-            config['trainfiles'] = all_train[:num_train[n]]
-            config['data']['num_indata'] = num_train[n] + num_test
-            config['data']['test_frac'] = num_test/config['data']['num_indata']
-            train(verbose=True)
+        config['working_dir'] = os.path.join(orig_wd, f'{names}{i}')
+        if not os.path.exists(config['working_dir']):
+            os.makedirs(config['working_dir'])
 
-        stats[n] = analyze_saved()
+        for n, input in enumerate(inputs):
+            config['savepath'] = os.path.join(config['working_dir'], savepth.format(input))
+            config['train']['pt_outputs'] = os.path.join(config['working_dir'], pt_out.format(input))
 
-    plot_hype(num_train, stats, 'Num input')
+            if not os.path.exists(config['savepath']):
+                config['trainfiles'] = all_train[:input]
+                config['data']['num_indata'] = input + num_test
+                config['data']['test_frac'] = num_test/config['data']['num_indata']
+                train(verbose=True)
 
-def plot_hype(x, stats, xtitle, showylabel=True, logx=False):
+            stats[n] = analyze_saved(plot_images=False)
+        reps[i] = stats
+
+    means = np.mean(reps[:, :, :, 0], axis=0)
+    errs = np.sqrt(np.sum(reps[:, :, :, 1] ** 2, axis=0)) / nreps
+    stats = np.dstack((means, errs))
+    plot_hype(inputs, stats, 'Num input')
+
+def plot_hype(x, stats, xtitle, showylabel=False, logx=False):
     stats[np.isnan(stats)] = 0
     metric_types = ['True Positive', 'True Negative', 'SNR']
     xsize = 3.3 if showylabel else 3
@@ -184,5 +232,6 @@ if __name__ == '__main__':
     # points_performance()
     # contrast_performance()
     # epoch_performance()
-    # input_performance()
-    weights_performance()
+    input_performance()
+    # weights_performance()
+    # rate_performance()
