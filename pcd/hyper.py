@@ -62,9 +62,9 @@ def contrast_performance():
     plot_hype(contrasts, stats, 'Input contrast')
 
 def epoch_performance():
-    epochs = np.arange(1,5)
-    savepth = 'epochs/step_{}.pth'
-    pt_out = 'epochs/pt_step_{}.pkl'
+    epochs = np.arange(1,12,1)
+    savepth = 'epochstest/epoch_{}.pth'
+    pt_out = 'epochstest/pt_epoch_{}.pkl'
     stats = np.zeros((len(epochs),6,2))
 
     for s in range(len(epochs)):
@@ -113,7 +113,7 @@ def plot_hype(x, stats, xtitle):
     stats[np.isnan(stats)] = 0
 
     metric_types = ['True Positive', 'True Negative', 'SNR']
-    fig, axes = init_grid(rows=len(metric_types), cols=1, figsize=(9, 16))
+    fig, axes = plt.subplots(nrows=len(metric_types), ncols=1, sharex=True, figsize=(5, 16))
     axes = axes.flatten()
 
     for im, (ax, metric) in enumerate(zip(axes, metric_types)):
@@ -121,10 +121,12 @@ def plot_hype(x, stats, xtitle):
         ax.errorbar(x, stats[:,istat,0], yerr=stats[:,istat,1], label='test') #,
         ax.errorbar(x, stats[:,istat+1,0], yerr=stats[:,istat+1,1], label='train') #,
         ax.set_ylabel(metric)
-        ax.set_xlabel(xtitle)
+        ax.tick_params(axis="x", direction="inout")
 
+    ax.set_xlabel(xtitle)
     ax.legend()
     plt.tight_layout()
+    plt.subplots_adjust(hspace=.0, bottom=.08)
     plt.show()
 
 
