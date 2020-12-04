@@ -12,9 +12,9 @@ from pcd.config.config import config
 from pcd.utils import init_grid
 
 def weights_performance():
-    weight_ratios = [0.01, 0.1, 1, 10]
-    savepth = 'weights_{}.pth'
-    pt_out = 'pt_weights_{}.pkl'
+    weight_ratios = [1e-6, 1e-5, 1e-4, 0.001, 0.01, 1.]
+    savepth = 'weightsredo/weights_{}.pth'
+    pt_out = 'weightsredo/pt_weights_{}.pkl'
     stats = np.zeros((len(weight_ratios),6,2))
 
     for r, ratio in enumerate(weight_ratios):
@@ -22,12 +22,12 @@ def weights_performance():
         config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(ratio)
 
         if not os.path.exists(config['savepath']):
-            config['train']['max_epoch'] = 2
+            config['train']['max_epoch'] = 4
             config['weight_ratio'] = ratio
             train(verbose=False)
         stats[r] = analyze_saved(plot_images=False)
 
-    plot_hype(weight_ratios, stats, 'Num points')
+    plot_hype(weight_ratios, stats, 'Num points', logx=True)
 
 def points_performance():
     num_points = config['num_point']*np.array([1e-4,0.1,0.25,0.5,0.75,1])
@@ -127,11 +127,12 @@ def input_performance():
 
     plot_hype(num_train, stats, 'Num input')
 
-def plot_hype(x, stats, xtitle, showylabel=True):
+def plot_hype(x, stats, xtitle, showylabel=True, logx=False):
     stats[np.isnan(stats)] = 0
-
     metric_types = ['True Positive', 'True Negative', 'SNR']
-    xsize = 3.3 if showylabel: else 3
+    xsize = 3.3 if showylabel else 3
+    left = 0.18 if showylabel else 0.12
+
     fig, axes = plt.subplots(nrows=len(metric_types), ncols=1, sharex=True, figsize=(xsize, 16))
     axes = axes.flatten()
 
@@ -140,13 +141,13 @@ def plot_hype(x, stats, xtitle, showylabel=True):
         ax.errorbar(x, stats[:,istat,0], yerr=stats[:,istat,1], label='test') #,
         ax.errorbar(x, stats[:,istat+1,0], yerr=stats[:,istat+1,1], label='train') #,
         ax.tick_params(axis="x", direction="inout")
+        ax.set_xscale('log')
         if showylabel:
             ax.set_ylabel(metric)
 
     ax.set_xlabel(xtitle)
     ax.legend()
     plt.tight_layout()
-    left = 0.18 if showylabel else 0.12
     plt.subplots_adjust(hspace=.0, bottom=.08, left=left)
     plt.show()
 
