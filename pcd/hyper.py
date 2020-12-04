@@ -6,10 +6,8 @@ import copy
 
 from pcd.input import make_input
 from pcd.train import train, load_dataset
-from pcd.predict import predict
-from pcd.article_plots import get_reduced_images, analyze_saved
+from pcd.article_plots import analyze_saved
 from pcd.config.config import config
-from pcd.utils import init_grid
 
 def weights_performance(nreps=3):
     weight_ratios = [1e-6, 1e-5, 1e-4, 0.001, 0.01, 1.]
@@ -32,7 +30,7 @@ def weights_performance(nreps=3):
         reps[i] = stats
 
     means = np.mean(reps[:,:,:,0], axis=0)
-    errs = np.sqrt(np.sum(reps[:,:,:,1]**2, axis=0))/len(nreps)
+    errs = np.sqrt(np.sum(reps[:,:,:,1]**2, axis=0))/nreps
     stats = np.dstack((means, errs))
     plot_hype(weight_ratios, stats, 'Num points', logx=True)
 
@@ -148,7 +146,9 @@ def plot_hype(x, stats, xtitle, showylabel=True, logx=False):
         ax.errorbar(x, stats[:,istat,0], yerr=stats[:,istat,1], label='test') #,
         ax.errorbar(x, stats[:,istat+1,0], yerr=stats[:,istat+1,1], label='train') #,
         ax.tick_params(axis="x", direction="inout")
-        ax.set_xscale('log')
+
+        if logx:
+            ax.set_xscale('log')
         if showylabel:
             ax.set_ylabel(metric)
 
