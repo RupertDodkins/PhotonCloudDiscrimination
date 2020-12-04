@@ -556,7 +556,7 @@ def load_h5(h5_filename, full_output=False):
         data = f['data'][:][:,subsample]
         label = f['label'][:][:,subsample]
         smpw = f['smpw'][:]
-        print(config['data']['degrade_factor'], data.shape)
+
         try:
             contrast = f.attrs['contrast']
             loc = f.attrs['loc']
