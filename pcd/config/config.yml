@@ -15,6 +15,7 @@ pre_adi: False
 model: minkowski  # minkowski  # lightgbm  #
 savepath: !join [*WDIR, 'test95.pth']
 weight_ratio: 0.1
+learning_rate: 1e-4
 
 data:
   num_indata: 45  # Total # of input data. int or leave blank if providing list of angles/lods/contrasts below

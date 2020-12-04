@@ -64,7 +64,7 @@ def train(verbose=True):
         print(f"Loading neural net {config['savepath']}")
         net.load_state_dict(torch.load(config['savepath']))
 
-    optimizer = SGD(net.parameters(), lr=1e-4)
+    optimizer = SGD(net.parameters(), lr=config['learning_rate'])
     for epoch in range(config['train']['max_epoch']):
         print('epoch: ', epoch)
         net.train()
