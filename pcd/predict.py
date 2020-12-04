@@ -33,7 +33,7 @@ def predict():
     net = net.to(device)
     print(f"loading NN from {config['savepath']}")
     net.load_state_dict(torch.load(config['savepath']))
-    # net.eval()
+    net.eval()
 
     # evalfiles = np.append(config['trainfiles'], config['testfiles'])
     evalfiles = config['testfiles']

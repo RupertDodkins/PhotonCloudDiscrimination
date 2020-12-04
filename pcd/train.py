@@ -95,7 +95,7 @@ def train(verbose=True):
         torch.save(net.state_dict(), config['savepath'])
 
 def test(net, device, criterion, verbose):
-    # net.eval()
+    net.eval()
     with torch.no_grad():
         for i in range(int(config['data']['num_indata'] * config['data']['test_frac'])):
             coords, labels, astro_dict = load_dataset(config['testfiles'][i])
