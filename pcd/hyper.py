@@ -11,22 +11,29 @@ from pcd.article_plots import get_reduced_images, analyze_saved
 from pcd.config.config import config
 from pcd.utils import init_grid
 
-def weights_performance():
+def weights_performance(nreps=3):
     weight_ratios = [1e-6, 1e-5, 1e-4, 0.001, 0.01, 1.]
-    savepth = 'weightsredo/weights_{}.pth'
-    pt_out = 'weightsredo/pt_weights_{}.pkl'
-    stats = np.zeros((len(weight_ratios),6,2))
+    reps = np.zeros((nreps,len(weight_ratios),6,2))
+    for i in range(nreps):
 
-    for r, ratio in enumerate(weight_ratios):
-        config['savepath'] = config['working_dir']+savepth.format(ratio)
-        config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(ratio)
+        savepth = 'weights'+str(i)+'/weights_{}.pth'
+        pt_out = 'weights'+str(i)+'/pt_weights_{}.pkl'
+        stats = np.zeros((len(weight_ratios),6,2))
 
-        if not os.path.exists(config['savepath']):
-            config['train']['max_epoch'] = 4
-            config['weight_ratio'] = ratio
-            train(verbose=False)
-        stats[r] = analyze_saved(plot_images=False)
+        for r, ratio in enumerate(weight_ratios):
+            config['savepath'] = config['working_dir']+savepth.format(ratio)
+            config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(ratio)
 
+            if not os.path.exists(config['savepath']):
+                config['train']['max_epoch'] = 4
+                config['weight_ratio'] = ratio
+                train(verbose=False)
+            stats[r] = analyze_saved(plot_images=False)
+        reps[i] = stats
+
+    means = np.mean(reps[:,:,:,0], axis=0)
+    errs = np.sqrt(np.sum(reps[:,:,:,1]**2, axis=0))/len(nreps)
+    stats = np.dstack((means, errs))
     plot_hype(weight_ratios, stats, 'Num points', logx=True)
 
 def points_performance():
