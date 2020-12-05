@@ -104,11 +104,15 @@ def points_performance():
 
     plot_hype(num_points, stats, 'Num points')
 
-def contrast_performance():
+def contrast_performance(nreps=3):
     contrasts = [-2,-3,-4]
-    savepth = 'cont_{}.pth'
-    pt_out = 'pt_cont_{}.pkl'
-    stats = np.zeros((len(contrasts),6,2))
+    names = 'cont'
+    config['train']['max_epoch'] = 2
+
+    reps = np.zeros((nreps, len(contrasts), 6, 2))
+    savepth = names + '_{}.pth'
+    pt_out = names + '_{}.pkl'
+    orig_wd = copy.copy(config['working_dir'])
 
     file_contrasts = []
     all_train = np.array(copy.copy(config['trainfiles']))
@@ -121,19 +125,29 @@ def contrast_performance():
     print(file_contrasts)
     file_bools = [np.logical_and(cont-0.5<=np.log10(file_contrasts), np.log10(file_contrasts)<cont+0.5) for cont in contrasts]
 
-    for c, cont in enumerate(contrasts):
-        config['savepath'] = config['working_dir']+savepth.format(cont)
-        config['train']['pt_outputs'] = config['working_dir'] + pt_out.format(cont)
+    for i in range(nreps):
+        stats = np.zeros((len(contrasts),6,2))
 
-        if not os.path.exists(config['savepath']):
-            config['trainfiles'] = all_train[file_bools[c]]
-            config['train']['max_epoch'] = 2
-            config['data']['num_indata'] = len(config['trainfiles']) + num_test
-            config['data']['test_frac'] = num_test/config['data']['num_indata']
-            train(verbose=False)
+        config['working_dir'] = os.path.join(orig_wd, f'{names}{i}')
+        if not os.path.exists(config['working_dir']):
+            os.makedirs(config['working_dir'])
 
-        stats[c] = analyze_saved()
+        for c, cont in enumerate(contrasts):
+            config['savepath'] = os.path.join(config['working_dir'], savepth.format(cont))
+            config['train']['pt_outputs'] = os.path.join(config['working_dir'], pt_out.format(cont))
 
+            if not os.path.exists(config['savepath']):
+                config['trainfiles'] = all_train[file_bools[c]]
+                config['data']['num_indata'] = len(config['trainfiles']) + num_test
+                config['data']['test_frac'] = num_test/config['data']['num_indata']
+                train(verbose=False)
+
+            stats[c] = analyze_saved()
+        reps[i] = stats
+
+    means = np.mean(reps[:, :, :, 0], axis=0)
+    errs = np.sqrt(np.sum(reps[:, :, :, 1] ** 2, axis=0)) / nreps
+    stats = np.dstack((means, errs))
     plot_hype(contrasts, stats, 'Input contrast')
 
 def epoch_performance():
@@ -160,7 +174,7 @@ def epoch_performance():
 
     plot_hype(epochs, stats, 'Num epochs', showylabel=True)
 
-def input_performance(nreps=1):
+def input_performance(nreps=2):
     # num_train = np.arange(1,int(config['data']['num_indata']*(1-config['data']['test_frac'])),2)
     inputs = np.arange(1,36,4)
     names = 'input'
@@ -229,9 +243,9 @@ if __name__ == '__main__':
     if not os.path.exists(config['working_dir']):
         make_input(config)
 
-    # points_performance()
+    points_performance()
     # contrast_performance()
     # epoch_performance()
-    input_performance()
+    # input_performance()
     # weights_performance()
     # rate_performance()
