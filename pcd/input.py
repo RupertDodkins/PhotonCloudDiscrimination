@@ -205,7 +205,7 @@ class Reform():
 
 class NnReform(Reform):
     """ Creates the input data in the NN input format """
-    def __init__(self, photons, outfile, astro, train_type='train', aug_ind=0, debug=False, dithered=False):
+    def __init__(self, photons, outfile, astro=None, train_type='train', aug_ind=0, debug=False, dithered=False):
         super().__init__(photons, outfile, train_type, aug_ind, debug, dithered)
 
         self.chunked_photons = []
@@ -283,9 +283,10 @@ class NnReform(Reform):
                 hf.create_dataset('pid', data=self.pids)
             if config['pointnet_version'] == 2:
                 hf.create_dataset('smpw', data=self.smpw)
-            hf.attrs[u'contrast'] = self.astro[0]
-            hf.attrs[u'loc'] = self.astro[1] * 10
-            hf.attrs[u'spec'] = self.astro[2][1]
+            if self.astro:
+                hf.attrs[u'contrast'] = self.astro[0]
+                hf.attrs[u'loc'] = self.astro[1] * 10
+                hf.attrs[u'spec'] = self.astro[2][1]
 
     def adjust_companion(self, astro):
         # brightness change
@@ -546,7 +547,7 @@ class MedisParams():
     def __call__(self, ix, *args, **kwargs):
         return (self.contrasts[ix], self.lods[ix], self.spectra[ix])
 
-def load_h5(h5_filename, full_output=False):
+def load_h5(h5_filename):
     print(h5_filename)
     with h5py.File(h5_filename, 'r') as f:
         if config['data']['degrade_factor'] != 1:
@@ -564,17 +565,15 @@ def load_h5(h5_filename, full_output=False):
             print(f"contrast: {np.log10(contrast)}, loc: {loc}, spec temp: {spec}")
         except KeyError:
             print('no astro info known')
+            contrast, loc, spec = [-1]*3
 
-    if full_output:
-        return data, label, smpw, {'contrast': contrast, 'loc': loc, 'spec': spec}
-    else:
-        return (data, label, smpw)
+    return data, label, smpw, {'contrast': contrast, 'loc': loc, 'spec': spec}
 
 def load_dataset(in_file, shuffle=False):
     assert os.path.isfile(in_file), f'[error] {in_file} dataset path not found'
 
     print(f'loading {in_file}')
-    in_data, in_label, class_weights, astro_dict = load_h5(in_file, full_output=True)
+    in_data, in_label, class_weights, astro_dict = load_h5(in_file)
 
     if shuffle:
         raise NotImplementedError

@@ -34,6 +34,9 @@ class MecObs():
         if filenames is None:
             filenames = glob.glob(config['mec']['dark_data']+'*.h5')
 
+        sp.numframes = len(filenames)
+        sp.sample_time = int(filenames[1][:-3].split('/')[-1]) - int(filenames[0][:-3].split('/')[-1])
+
         if debug: fig = plt.figure(figsize=(12,12))
 
         for i, filename in enumerate(filenames):
@@ -48,8 +51,10 @@ class MecObs():
 
             print('photons', len(photons[0]))
 
-            tcut = np.logical_and(photons[0] > 0, photons[0] < 11)
+            tcut = np.logical_and(photons[0] > 0, photons[0] < 15)
             photons = photons[:, tcut]
+            if not config['mec']['dithered']:
+                photons[0] += int(filenames[i][:-3].split('/')[-1]) - int(filenames[0][:-3].split('/')[-1])
 
             print('photons', len(photons[0]))
 
@@ -113,7 +118,7 @@ def make_input(config, inject_fake_comp=False):
         d = input.MedisParams(config)
 
     outfiles = np.append(config['trainfiles'], config['testfiles'])
-    outfiles = [config['mec']['dark_data'] + file.split('/')[-1] for file in outfiles]
+    # outfiles = [config['mec']['dark_data'] + file.split('/')[-1] for file in outfiles]
 
     debugs = [False] * config['data']['num_indata']
     # debugs[0] = True
@@ -135,7 +140,7 @@ def make_input(config, inject_fake_comp=False):
                 planet_photons = obs.photons[1]
                 filephotons = [photons[0], planet_photons]
 
-            if config['mec']['companion_coords']:
+            elif config['mec']['companion_coords']:
                 xc,yc,rc = config['mec']['companion_coords']
                 print('moving companion')
                 filephotons = copy.copy(photons[0])
@@ -187,10 +192,13 @@ def make_input(config, inject_fake_comp=False):
                     planet_photons[p, 2], planet_photons[p, 3] = centered_y[p] + ystar, centered_x[p] + xstar
                 filephotons = [star_photons, planet_photons]
 
+            else:
+                filephotons = [photons[0], np.array([photons[0][0]])]
+
             filephotons = [filephotons[o][i::config['data']['num_indata']] for o in range(2)]
 
             c = input.NnReform(filephotons, outfile, train_type=train_type, debug=debugs[i],
-                           rm_input=obs.medis_cache, dithered=config['mec']['dithered'])
+                               dithered=config['mec']['dithered'])
             c.process_photons()
             c.save_class()
 

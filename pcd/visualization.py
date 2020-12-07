@@ -272,7 +272,7 @@ def metric_tesseracts(start=-50, end=-1, jump=1, type='both'):
 
     if config['data']['quantize']:
         _,_, cur_data, _, _, _ = alldata[0]
-        bins = [np.linspace(np.min(cur_data[:,0]),np.max(cur_data[:,0]), 100)] * 4
+        bins = [np.linspace(np.min(cur_data[:,i]),np.max(cur_data[:,i]), 100) for i in range(4)]
     else:
         bins = [np.linspace(-1, 1, 100) * 1e6] * 4
 
