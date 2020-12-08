@@ -34,6 +34,8 @@ class MecObs():
         if filenames is None:
             filenames = glob.glob(config['mec']['dark_data']+'*.h5')
 
+        filenames = filenames[::20]
+
         sp.numframes = len(filenames)
         sp.sample_time = int(filenames[1][:-3].split('/')[-1]) - int(filenames[0][:-3].split('/')[-1])
 
@@ -113,9 +115,7 @@ class MecObs():
             plt.show(block=False)
             self.display_2d_hists(self)
 
-def make_input(config, inject_fake_comp=False):
-    if inject_fake_comp:
-        d = input.MedisParams(config)
+def make_input(config, inject_fake_comp=True):
 
     outfiles = np.append(config['trainfiles'], config['testfiles'])
     # outfiles = [config['mec']['dark_data'] + file.split('/')[-1] for file in outfiles]
@@ -129,14 +129,16 @@ def make_input(config, inject_fake_comp=False):
 
     obs = MecObs(config['mec']['h5s'])
     photons = obs.photons
+
+    mp = input.MedisParams(config)
     for i, outfile, train_type in zip(range(config['data']['num_indata']), outfiles, train_types):
         if not os.path.exists(outfile):
 
             if inject_fake_comp:
-                contrast = [d.contrasts[i]]
-                lods = [d.lods[i]]
-                spectra = [config['data']['star_spectra'], config['data']['planet_spectra'][i]]
-                obs = input.MedisObs(f'{i}', contrast, lods, spectra)
+                astro = mp(i)
+                med_ind = np.arange(config['data']['num_indata'])[i] // (config['data']['aug_ratio'] + 1)
+                obs = input.MedisObs(f'{med_ind}', astro, debug=False)
+                obs.adjust_companion()
                 planet_photons = obs.photons[1]
                 filephotons = [photons[0], planet_photons]
 
