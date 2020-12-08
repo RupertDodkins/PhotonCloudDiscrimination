@@ -39,7 +39,11 @@ def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True, verbose=F
     star_raw = np.sum(star_tess, axis=(0,1))
     planet_raw = np.sum(planet_tess, axis=(0,1))
 
+    sp.numframes = 80
+    sp.sample_time = 15
+
     angle_list = -np.linspace(0, sp.numframes * sp.sample_time * config['data']['rot_rate']/60, all_tess.shape[1])
+    print(angle_list, 'angle')
 
     if use_spec:
         wsamples = np.linspace(ap.wvl_range[0], ap.wvl_range[1], all_tess.shape[0])
@@ -48,8 +52,8 @@ def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True, verbose=F
         all_pca = pca.pca(all_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
                         adimsdi='double', ncomp=(None,1), collapse='sum', verbose=verbose)
 
-        # star_pca = pca.pca(star_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
-        #                 adimsdi='double', ncomp=(None,1), collapse='sum', verbose=verbose)
+        star_pca = pca.pca(star_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
+                        adimsdi='double', ncomp=(None,1), collapse='sum', verbose=verbose)
 
         planet_pca = pca.pca(planet_tess, angle_list=angle_list, scale_list=scale_list, mask_center_px=None,
                         adimsdi='double', ncomp=(None,1), collapse='sum', verbose=verbose)
@@ -75,9 +79,10 @@ def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True, verbose=F
     # star_snr = snrmap(star_pca, fwhm=5, plot=True)
     # planet_snr = snrmap(planet_pca, fwhm=5, plot=True)
 
-    # reduced_images = np.array([[all_derot, star_derot, planet_derot],
-    #                            [all_pca, star_pca, planet_pca],
-    #                            [all_snr, star_snr, planet_snr]])#, [all_med, star_med, planet_med]])
+    reduced_images = np.array([[all_raw, star_raw, planet_raw],
+                               [all_derot, star_derot, planet_derot],
+                               [all_pca, star_pca, planet_pca],
+                               [all_med, star_med, planet_med]])#, )  # [all_snr, star_snr, planet_snr]
 
     planet_loc = (92,60)
     fwhm =  config['data']['fwhm']
@@ -90,7 +95,7 @@ def get_reduced_images(ind=1, use_spec=True, plot=False, use_pca=True, verbose=F
     # plt.imshow(planet_derot)
     # plt.imshow(snrmap(planet_derot, fwhm, nproc=nproc))
     # plt.show()
-    reduced_images = np.array([[all_raw, star_raw, planet_raw]])
+    # reduced_images = np.array([[all_raw, star_raw, planet_raw]])
 
     # grid(reduced_images, logZ=True, vlim=(1,50))  #, vlim=(1,70)
     if plot:
@@ -401,8 +406,8 @@ def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, ver
         print(conf)
         print('throughput: ', true_pos  / (true_pos + false_neg))
 
-        planet_photons = np.concatenate((input_data[metrics[0]], input_data[metrics[2]]), axis=0)
-        calc_snr(planet_photons, astro_dict)
+        # planet_photons = np.concatenate((input_data[metrics[0]], input_data[metrics[2]]), axis=0)
+        # calc_snr(planet_photons, astro_dict)
 
 if __name__ == '__main__':
     get_reduced_images(ind=-1, plot=True)

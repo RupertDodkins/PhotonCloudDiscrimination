@@ -113,7 +113,7 @@ def get_tess(photonlist):
     bins = [np.linspace(photonlist[:, 0].min(), photonlist[:, 0].max(), sp.numframes + 1),
             np.linspace(photonlist[:, 1].min(), photonlist[:, 1].max(), ap.n_wvl_final + 1),
             np.linspace(-200, 200, 151),
-            np.linspace(-200, 200, 151)]
+            np.linspace(-500, 500, 151)]
 
     tess, _ = np.histogramdd(photonlist, bins=bins)
 
