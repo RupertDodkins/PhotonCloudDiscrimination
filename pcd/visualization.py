@@ -26,7 +26,7 @@ class Grid_Visualiser():
         # set axes
         plt.ion()
         plt.show(block=True)
-        self.fig, self.axes = utils.init_grid(rows=rows, cols=cols, figsize=(12, 10))
+        self.fig, self.axes = utils.init_grid(rows=rows, cols=cols, figsize=(8, 6))
 
         for i in range(rows):
             if row_headings:
@@ -207,9 +207,6 @@ def metric_trends(start=0, end=10):
         # print(confusion_matrix(fn_frac, tp_frac, tn_frac, fp_frac, tn_frac + fp_frac, tp_frac + fn_frac))
         # print('throughput: ', tp_frac / (tp_frac + fn_frac))
 
-        planet_photons = np.concatenate((input_data[tp_list], input_data[fp_list]), axis=0)
-        snr = calc_snr(planet_photons, astro_dict)
-
         metrics_vol = get_bin_measures(true_label, pred_label, sum=False)
 
         # np.float64 so ZeroDivideErrors -> np.nan
@@ -227,7 +224,11 @@ def metric_trends(start=0, end=10):
         metrics[kind]['Precision'] = np.append(metrics[kind]['Precision'], true_pos / (true_pos + false_pos))
         metrics[kind]['Accuracy'] = np.append(metrics[kind]['Accuracy'], (true_pos + true_neg) / (tot_pos + tot_neg))
         metrics[kind]['Loss'] = np.append(metrics[kind]['Loss'], loss)
-        metrics[kind]['SNR'] = np.append(metrics[kind]['SNR'], snr)
+
+        if 'SNR' in plot_metric_types:
+            planet_photons = np.concatenate((input_data[tp_list], input_data[fp_list]), axis=0)
+            snr = calc_snr(planet_photons, astro_dict)
+            metrics[kind]['SNR'] = np.append(metrics[kind]['SNR'], snr)
 
     kinds = ['train', 'test'] if config['data']['test_frac'] > 0 else ['train']
     for kind in kinds:
@@ -309,6 +310,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     plot_images()
-    metric_trends(end = -1)
-    # metric_tesseracts(start = 0, end = -1, jump=1)
+    # metric_trends(end = -1)
+    # metric_tesseracts(start = 0, end = -1, jump=5)
 
