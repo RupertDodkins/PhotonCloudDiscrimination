@@ -90,11 +90,12 @@ def pix_snr_loc(array, source_xy, fwhm, verbose=False):
 def get_photons(amount=1):
     print('amount = ', amount)
     alldata = load_meta(kind='pt_outputs', amount=amount)
-    cur_seg, pred_seg_res, cur_data, _, trainbool, _ = alldata[-amount]
+    cur_seg, pred_seg_res, cur_data, _, trainbool, astro_dict = alldata[-amount]
     del alldata
 
     metrics = get_bin_measures(cur_seg, pred_seg_res, sum=False)
     true_pos, false_neg, false_pos, true_neg = np.sum(metrics, axis=1)
+    print(astro_dict)
     print(trainbool)
     print(confusion_matrix(false_neg, true_pos, true_neg, false_pos, true_neg + false_pos, true_pos + false_neg))
 
@@ -110,10 +111,12 @@ def get_tess(photonlist):
     # bins = [np.linspace(-1, 1, sp.numframes + 1), np.linspace(-1, 1, ap.n_wvl_final + 1),
     #         np.linspace(-1, 1, mp.array_size[0]), np.linspace(-1, 1, mp.array_size[1])]
     # bins = [mp.array_size[0]] * 4
+    max_x = np.abs(photonlist[:,2]).max()
+    max_y = np.abs(photonlist[:,3]).max()
     bins = [np.linspace(photonlist[:, 0].min(), photonlist[:, 0].max(), sp.numframes + 1),
             np.linspace(photonlist[:, 1].min(), photonlist[:, 1].max(), ap.n_wvl_final + 1),
-            np.linspace(-200, 200, 151),
-            np.linspace(-500, 500, 151)]
+            np.linspace(-max_x, max_x, 151),
+            np.linspace(-max_y, max_y, 151)]
 
     tess, _ = np.histogramdd(photonlist, bins=bins)
 

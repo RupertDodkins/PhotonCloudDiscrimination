@@ -143,6 +143,7 @@ def make_input(config, inject_fake_comp=True):
                 filephotons = [photons[0], planet_photons]
 
             elif config['mec']['companion_coords']:
+                astro = None
                 xc,yc,rc = config['mec']['companion_coords']
                 print('moving companion')
                 filephotons = copy.copy(photons[0])
@@ -195,12 +196,13 @@ def make_input(config, inject_fake_comp=True):
                 filephotons = [star_photons, planet_photons]
 
             else:
+                astro = None
                 filephotons = [photons[0], np.array([photons[0][0]])]
 
             filephotons = [filephotons[o][i::config['data']['num_indata']] for o in range(2)]
 
             c = input.NnReform(filephotons, outfile, train_type=train_type, debug=debugs[i],
-                               dithered=config['mec']['dithered'])
+                               dithered=config['mec']['dithered'], astro=astro)
             c.process_photons()
             c.save_class()
 
