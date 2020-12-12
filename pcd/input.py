@@ -336,16 +336,17 @@ class NnReform(Reform):
         plt.show(block=True)
 
     def display_2d_hists(self, ind=None):
-        fig, axes = utils.init_grid(rows=self.num_classes, cols=config['dimensions'], figsize=(16,4*self.num_classes))
+        fig, axes = utils.init_grid(rows=self.num_classes, cols=3, figsize=(16,4*self.num_classes))
         # fig, axes = utils.init_grid(rows=self.num_classes, cols=4)
-        fig.suptitle(f'{ind}', fontsize=16)
-        plt.tight_layout()
+        if ind:
+            fig.suptitle(f'{ind}', fontsize=16)
+
 
         if not self.normalised:
             bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-120, 0, 50), range(mp.array_size[0]),
                     range(mp.array_size[1])]
         else:
-            radius = 1.5
+            radius = 1.
             bins = [np.linspace(-radius,radius,50), np.linspace(-radius,radius,50), 
                     np.linspace(-radius,radius,mp.array_size[0]), np.linspace(-radius,radius,mp.array_size[0])]
 
@@ -357,7 +358,7 @@ class NnReform(Reform):
             else:
                 H, _ = np.histogramdd(self.data[self.labels==o], bins=bins)
 
-            for p, pair in enumerate([['x','y'], ['x','p'], ['x','t'], ['p','t']]):
+            for p, pair in enumerate([['x','y'], ['x','p'], ['x','t']]):
                 inds = coord.find(pair[0]), coord.find(pair[1])
                 sumaxis = tuple(np.delete(range(len(coord)), inds))
                 image = np.sum(H, axis=sumaxis)
@@ -366,7 +367,10 @@ class NnReform(Reform):
                     inds = inds[1], inds[0]
                 axes[o,p].imshow(image, norm=LogNorm(), aspect='auto',
                                  extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
+                axes[o,p].set_xlabel(f'{pair[1]}', fontsize=18)
+                axes[o,p].set_ylabel(f'{pair[0]}', fontsize=16)
 
+        plt.tight_layout()
         plt.show(block=True)
 
 class DtReform(Reform):
@@ -585,8 +589,8 @@ def make_input(config):
 
     # get info on each photoncloud
     outfiles = np.append(config['trainfiles'], config['testfiles'])
-    debugs = [False] * config['data']['num_indata']
-    # debugs[0] = False
+    debugs = [True] * config['data']['num_indata']
+    # debugs[0] = True
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)
@@ -633,5 +637,5 @@ def make_eval():
 
 
 if __name__ == "__main__":
-    # make_input(config)
-    make_eval()
+    make_input(config)
+    # make_eval()
