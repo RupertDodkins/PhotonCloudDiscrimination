@@ -151,26 +151,28 @@ def plot_snr_trends(start=0, end=-1):
         ax.set_title(metric)
     plt.show()
 
-def plot_images(start=0, end=-1):
+def plot_images():
     # config['train']['pt_outputs'] = '/work/dodkins/PCD_data/201124/pt_num_13.pkl'
     alldata = load_meta('pt_outputs')
     allsteps = len(alldata)
 
-    start, end = utils.get_range_inds(start, end, allsteps)
-    images = []
-
-    for step in range(start, end+1):
-        true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
-        tp_list, fn_list, fp_list, tn_list = get_bin_measures(true_label, pred_label, sum=False)
-        planet_photons = np.concatenate((input_data[tp_list], input_data[fp_list]), axis=0)
-        derot_image = reduce_image(planet_photons)
-        images.append(derot_image)
-
-    fig, axes = utils.init_grid(rows=1, cols=5, figsize=(16,8))
-    axes = axes.flatten()
     num_in = int(config['data']['num_indata'])
     start_loc = int(num_in*(1-config['data']['test_frac']))
-    for im, image in enumerate(images[start_loc::num_in]):
+
+    images = []
+    for epoch in range(allsteps//num_in):
+        for step in range(num_in*epoch + start_loc, num_in*epoch + start_loc+4):
+            true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
+            tp_list, fn_list, fp_list, tn_list = get_bin_measures(true_label, pred_label, sum=False)
+            planet_photons = np.concatenate((input_data[tp_list], input_data[fp_list]), axis=0)
+            derot_image = reduce_image(planet_photons)
+            images.append(derot_image)
+
+    fig, axes = utils.init_grid(rows=4, cols=5, figsize=(16,8))
+    axes = axes.T
+    axes = axes.flatten()
+
+    for im, image in enumerate(images):
         axes[im].imshow(image, origin='lower')
     plt.tight_layout()
     plt.show()
@@ -310,6 +312,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     plot_images()
-    # metric_trends(end = -1)
+    metric_trends(end = -1)
     # metric_tesseracts(start = 0, end = -1, jump=5)
 
