@@ -79,6 +79,8 @@ def convert_inputfiles(config):
 
 config = convert_astro(config)
 config = convert_inputfiles(config)
+if None == config['data']['aug_ratio']:
+    config['data']['aug_ratio'] = config['data']['num_indata'] -1
 
 # load run.yml
 with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "run.yml"), 'r') as stream:
