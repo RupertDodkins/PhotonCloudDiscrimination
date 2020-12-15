@@ -32,16 +32,13 @@ class MecObs():
         self.photons = np.empty((0, 4))
 
         if filenames is None:
-            filenames = glob.glob(config['mec']['dark_data']+'*.h5')
+            self.filenames = glob.glob(config['mec']['dark_data']+'*.h5')
 
-        filenames = filenames[::20]
-
-        sp.numframes = len(filenames)
-        sp.sample_time = int(filenames[1][:-3].split('/')[-1]) - int(filenames[0][:-3].split('/')[-1])
+        self.filenames = self.filenames[::2]
 
         if debug: fig = plt.figure(figsize=(12,12))
 
-        for i, filename in enumerate(filenames):
+        for i, filename in enumerate(self.filenames):
             iop.photonlist = filename
 
             print(i, filename)
@@ -56,7 +53,7 @@ class MecObs():
             tcut = np.logical_and(photons[0] > 0, photons[0] < 15)
             photons = photons[:, tcut]
             if not config['mec']['dithered']:
-                photons[0] += int(filenames[i][:-3].split('/')[-1]) - int(filenames[0][:-3].split('/')[-1])
+                photons[0] += int(self.filenames[i][:-3].split('/')[-1]) - int(self.filenames[0][:-3].split('/')[-1])
 
             print('photons', len(photons[0]))
 
@@ -78,7 +75,7 @@ class MecObs():
             print('photons', len(photons[0]))
 
             chosen = sample(range(len(photons[0])),
-                            config['data']['num_indata'] * int(np.ceil(1.5 * config['num_point'] / len(filenames))))
+                            config['data']['num_indata'] * int(np.ceil(1.5 * config['num_point'] / len(self.filenames))))
             photons = photons[:, chosen]
 
             print('photons', len(photons[0]))
@@ -131,12 +128,21 @@ def make_input(config, inject_fake_comp=True):
     photons = obs.photons
 
     mp = input.MedisParams(config)
+
+    mec_numframes = len(obs.filenames)
+    mec_sample_time = int(obs.filenames[1][:-3].split('/')[-1]) - int(obs.filenames[0][:-3].split('/')[-1])
+
+    medis_numframes = copy.copy(sp.numframes)
+    medis_sample_time = copy.copy(sp.sample_time)
+
     for i, outfile, train_type in zip(range(config['data']['num_indata']), outfiles, train_types):
         if not os.path.exists(outfile):
 
             if inject_fake_comp:
                 astro = mp(i)
                 med_ind = np.arange(config['data']['num_indata'])[i] // (config['data']['aug_ratio'] + 1)
+                sp.numframes = medis_numframes
+                sp.sample_time = medis_sample_time
                 obs = input.MedisObs(f'{med_ind}', astro, debug=False)
                 obs.adjust_companion()
                 planet_photons = obs.photons[1]
@@ -201,6 +207,8 @@ def make_input(config, inject_fake_comp=True):
 
             filephotons = [filephotons[o][i::config['data']['num_indata']] for o in range(2)]
 
+            sp.numframes = mec_numframes
+            sp.sample_time = mec_sample_time
             c = input.NnReform(filephotons, outfile, train_type=train_type, debug=debugs[i],
                                dithered=config['mec']['dithered'], astro=astro)
             c.process_photons()
