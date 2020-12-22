@@ -20,7 +20,7 @@ import pcd.input as input
 
 class MecObs():
     """ Gets the photon lists from photontables """
-    def __init__(self, filenames, debug=False):
+    def __init__(self, filenames, debug=True):
         mp.array_size = [144, 140]  # the size of mec arrays
         # ap.wvl_range = np.array([0,1500])/1e9
 
@@ -34,7 +34,7 @@ class MecObs():
         if filenames is None:
             self.filenames = glob.glob(config['mec']['dark_data']+'*.h5')
 
-        self.filenames = self.filenames[::2]
+        self.filenames = self.filenames[::20]
 
         if debug: fig = plt.figure(figsize=(12,12))
 
@@ -118,7 +118,7 @@ def make_input(config, inject_fake_comp=True):
     # outfiles = [config['mec']['dark_data'] + file.split('/')[-1] for file in outfiles]
 
     debugs = [False] * config['data']['num_indata']
-    # debugs[0] = True
+    debugs[0] = True
     train_types = ['train'] * config['data']['num_indata']
     num_test = config['data']['num_indata'] * config['data']['test_frac']
     num_test = int(num_test)

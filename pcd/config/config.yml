@@ -53,8 +53,8 @@ train:
 mec:
   dark_data: /work/dodkins/MEC/20200729/  # /darkdata/dodkins/mec/20200729/HR8799/stare/  # /mnt/data0/dodkins/mec/20200731/Hip5319/dither_2/drizzled_h5s/
   h5s: # [1596290345.h5, 1596290351.h5, ...] or leave blank for all in folder
-  dithered: False  # use the RA/Dec columns and align in time vs use x/y from beammap with no time adjustment
-  offset: [17.5, -45]  # area to crop
+  dithered: False  # use the RA/Dec columnsF and align in time vs use x/y from beammap with no time adjustment
+  offset: [17.5, -35]  # [17.5, -45]  # area to crop
   glados_inputfiles: !join [*WDIR, 'inputfile_{id}.h5']
   companion_coords:   # x,y,r  can get these values by eye with debug == True on MecObs()
 

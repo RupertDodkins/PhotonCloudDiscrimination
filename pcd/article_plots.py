@@ -410,7 +410,7 @@ def pt_step(input_data, input_label, pred_val, loss, astro_dict, train=True, ver
         # calc_snr(planet_photons, astro_dict)
 
 if __name__ == '__main__':
-    get_reduced_images(ind=-1, plot=True)
+    get_reduced_images(ind=435, plot=True)
     # plot_3D_pointclouds()
     # ROC_curve()
     # view_reduced()

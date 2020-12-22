@@ -365,7 +365,7 @@ class NnReform(Reform):
                 if pair in [['x','p'], ['x','t']]:
                     image = image.T
                     inds = inds[1], inds[0]
-                axes[o,p].imshow(image, norm=LogNorm(), aspect='auto',
+                axes[o,p].imshow(image, norm=None, aspect='auto',
                                  extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
                 axes[o,p].set_xlabel(f'{pair[1]}', fontsize=18)
                 axes[o,p].set_ylabel(f'{pair[0]}', fontsize=16)
