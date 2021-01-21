@@ -12,8 +12,8 @@ iop.datadir = config['working_dir']
 # iop.photonlist = os.path.join(iop.datadir, 'photonlist.pkl')
 # print(iop.photonlist, 'photonlist')
 
-sp.sample_time = 30  # 0.5
-sp.numframes = 20
+sp.sample_time = 6  # 0.5
+sp.numframes = 1
 sp.grid_size = 512
 sp.num_processes = 7
 sp.beam_ratio = 0.15

@@ -2,7 +2,7 @@
 
 debug: True
 pcd_data: &DIR ${WORKING_DIR}/PCD_data/  # store this path as DIR
-working_dir: &WDIR !join [*DIR, 201214cHip91261/]  # concat DIR with that suffix and store as WDIR
+working_dir: &WDIR !join [*DIR, 210112Hipb5319/]  # concat DIR with that suffix and store as WDIR
 overwrite_cache: False
 pointnet_version: 2
 num_point: &PN 200000  #  # 131072 262144
@@ -31,7 +31,7 @@ data:
   time_diff: False
   quantize: True
   batch_coords: True
-  rot_rate: 3  # deg/min
+  rot_rate: 15  # deg/min
   fwhm: 10
   degrade_factor: 1
 
@@ -51,10 +51,10 @@ train:
   roc_probabilities: False
 
 mec:
-  dark_data: /work/dodkins/MEC/20200729/  # /darkdata/dodkins/mec/20200729/HR8799/stare/  # /mnt/data0/dodkins/mec/20200731/Hip5319/dither_2/drizzled_h5s/
+  dark_data: /darkdata/dodkins/mec/20200731/Hip5319/dither_2/drizzled_h5s/ # /work/dodkins/MEC/20200729/  # /darkdata/dodkins/mec/20200729/HR8799/stare/  # /mnt/data0/dodkins/mec/20200731/Hip5319/dither_2/drizzled_h5s/
   h5s: # [1596290345.h5, 1596290351.h5, ...] or leave blank for all in folder
-  dithered: False  # use the RA/Dec columnsF and align in time vs use x/y from beammap with no time adjustment
-  offset: [17.5, -35]  # [17.5, -45]  # area to crop
+  dithered: True  # use the RA/Dec columnsF and align in time vs use x/y from beammap with no time adjustment
+  offset: [30, -40]  #[17.5, -35]  # [17.5, -45]  # area to crop
   glados_inputfiles: !join [*WDIR, 'inputfile_{id}.h5']
-  companion_coords:   # x,y,r  can get these values by eye with debug == True on MecObs()
+  companion_coords: [78, 104, 6]  # x,y,r  can get these values by eye with debug == True on MecObs()
 

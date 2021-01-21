@@ -129,8 +129,8 @@ class MedisObs():
 
         if config['mec']['dithered']:
             bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-mp.array_size[0], 0, 50),
-                    np.linspace(self.photons[0][:,2].min(), self.photons[0][:,2].max(), mp.array_size[0]),
-                    np.linspace(self.photons[0][:,3].min(), self.photons[0][:,3].max(), mp.array_size[0])]
+                    np.linspace(0, mp.array_size[0], mp.array_size[0]),
+                    np.linspace(0, mp.array_size[1], mp.array_size[1])]
         else:
             bins = [np.linspace(0, sp.sample_time * sp.numframes, 50), np.linspace(-mp.array_size[0], 0, 50), range(mp.array_size[0]),
                     range(mp.array_size[1])]
@@ -186,21 +186,18 @@ class Reform():
         self.all_photons = self.all_photons[time_sort]
         self.all_pids = self.all_pids[time_sort]
 
-    def normalise_photons(self, use_bounds=True):
+    def normalise_photons(self):
         # normalise photons
-        if use_bounds:
-            bounds = np.array([[0, sp.sample_time * sp.numframes],
-                               mp.wavecal_coeffs[0] * ap.wvl_range + mp.wavecal_coeffs[1],  # [-116, 0], ap.wvl_range = np.array([800, mp.array_size[0]0]), mp.wavecal_coeffs = [1. / 6, -250]
-                               [0, mp.array_size[0]],
-                               [0, mp.array_size[1]]])
-            # if config['data']['trans_polar']:
-            #     bounds[2] = [0, np.sqrt(((mp.array_size[0]/2)**2) * 2)]
-            #     bounds[3] = [-np.pi, np.pi]
-            self.all_photons -= np.mean(bounds, axis=1)
-            self.all_photons /= np.max(self.all_photons, axis=0)
-        else:
-            self.all_photons -= (np.min(self.all_photons, axis=0) + np.max(self.all_photons, axis=0))/2  # np.mean(self.all_photons, axis=0)
-            self.all_photons /= (2*np.std(self.all_photons, axis=0))
+        bounds = np.array([[0, sp.sample_time * sp.numframes+1],
+                           mp.wavecal_coeffs[0] * ap.wvl_range + mp.wavecal_coeffs[1],  # [-116, 0], ap.wvl_range = np.array([800, mp.array_size[0]0]), mp.wavecal_coeffs = [1. / 6, -250]
+                           [0, mp.array_size[0]+1],
+                           [0, mp.array_size[1]+1]])
+        self.all_photons -= np.mean(bounds, axis=1)
+        self.all_photons[:,:2] /= np.max(np.abs(self.all_photons[:,:2]), axis=0)
+        self.all_photons[:,2:] /= np.max(np.abs(self.all_photons[:,2:]))
+        # else:
+        #     self.all_photons -= (np.min(self.all_photons, axis=0) + np.max(self.all_photons, axis=0))/2  # np.mean(self.all_photons, axis=0)
+        #     self.all_photons /= (2*np.std(self.all_photons, axis=0))
         self.normalised = True
 
 class NnReform(Reform):
@@ -220,7 +217,7 @@ class NnReform(Reform):
     def process_photons(self):
         self.aggregate_photons()
         self.sort_photons()
-        self.normalise_photons(use_bounds=not self.dithered)
+        self.normalise_photons()
         self.chunk_photons()
 
     def chunk_photons(self):
@@ -369,6 +366,9 @@ class NnReform(Reform):
                                  extent=[bins[inds[0]][0],bins[inds[0]][-1],bins[inds[1]][0],bins[inds[1]][-1]])
                 axes[o,p].set_xlabel(f'{pair[1]}', fontsize=18)
                 axes[o,p].set_ylabel(f'{pair[0]}', fontsize=16)
+                axes[o, p].set_xlim([-1,1])
+                axes[o, p].set_ylim([-1,1])
+
 
         plt.tight_layout()
         plt.show(block=True)
@@ -541,6 +541,7 @@ class MedisParams():
         self.contrasts[invalid_contrast] = 0
         maxcont = np.argmax(self.contrasts)
         self.contrasts = np.append(self.contrasts[maxcont], np.delete(self.contrasts, maxcont))
+        config['data']['contrasts'] = np.log10(self.contrasts)
         disp = config['data']['lods']
         angle = config['data']['angles']
         self.lods = (np.array([np.sin(np.deg2rad(angle)),np.cos(np.deg2rad(angle))])*disp).T
