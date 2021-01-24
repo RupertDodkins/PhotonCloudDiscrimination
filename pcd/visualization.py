@@ -184,7 +184,7 @@ def metric_trends(start=0, end=10):
     :return:
     """
 
-    plot_metric_types = ['True Positive', 'True Negative', 'Loss', 'SNR']
+    plot_metric_types = ['True Positive', 'True Negative', 'Loss']
     metric_types = ['True Positive', 'False Negative', 'True Negative', 'False Positive', 'Recall', 'Precision',
                     'Accuracy', 'Loss', 'SNR']
 
@@ -201,8 +201,11 @@ def metric_trends(start=0, end=10):
     metrics['train']['lines'], metrics['test']['lines'] = [], []
     metrics['train']['color'], metrics['test']['color'] = 'C1', 'C0'
 
-    for step in range(start, end+1):
+    def running_av(x, N=10):
+        return np.convolve(x, np.ones(N) / N, mode='valid')
 
+    for step in range(start, end+1):
+        print(step, start, end)
         true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
         tp_list, fn_list, fp_list, tn_list = get_bin_measures(true_label, pred_label, sum=False)
         # tp_frac, fn_frac, fp_frac, tn_frac = np.sum([tp_list, fn_list, fp_list, tn_list], axis=1)
@@ -244,7 +247,9 @@ def metric_trends(start=0, end=10):
 
         for ax, metric_key in zip(axes, plot_metric_types):
             metrics[kind]['lines'].append(ax.plot(epochs, metrics[kind][metric_key], c=metrics[kind]['color'],
-                                                  label=kind))
+                                                  label=kind, alpha=0.25))
+            ax.plot(epochs[:len(running_av(metrics[kind][metric_key], len(epochs)//20))],
+                    running_av(metrics[kind][metric_key], len(epochs)//20), c=metrics[kind]['color'])
 
     axes[0].legend()
 
@@ -311,7 +316,7 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', default=-1, dest='epoch', help='View the performance of which epoch')
     args = parser.parse_args()
 
-    plot_images()
+    # plot_images()
     metric_trends(end = -1)
-    # metric_tesseracts(start = 0, end = -1, jump=5)
+    metric_tesseracts(start = -5, end = -1, jump=1)
 
