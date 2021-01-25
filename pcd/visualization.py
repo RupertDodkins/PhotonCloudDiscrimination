@@ -177,6 +177,77 @@ def plot_images():
     plt.tight_layout()
     plt.show()
 
+def running_av(x, N=10):
+    return np.convolve(x, np.ones(N) / N, mode='valid')
+
+def separate_trends(start=0, end=-1):
+    plot_metric_types = ['SNR']
+    astro_info = {'separation':[], 'contrast':[], 'PA':[], 'spec':[]}
+
+    num_train, num_test = num_input()
+    alldata = load_meta('pt_outputs')
+    allsteps = len(alldata)
+    start, end = utils.get_range_inds(start, end, allsteps)
+
+    axes = initialize_axes(plot_metric_types)
+    values = [np.empty(0)] * len(plot_metric_types)
+    metrics = {}
+    metrics['train'] = dict(zip(plot_metric_types, values))
+    metrics['test'] = dict(zip(plot_metric_types, values))
+    metrics['train']['color'], metrics['test']['color'] = 'C1', 'C0'
+
+    for step in range(start, end+1):
+        print(step, start, end)
+        true_label, pred_label, input_data, loss, train, astro_dict = alldata[step]
+        tp_list, fn_list, fp_list, tn_list = get_bin_measures(true_label, pred_label, sum=False)
+        tp_frac, fn_frac, fp_frac, tn_frac = np.sum([tp_list, fn_list, fp_list, tn_list], axis=1)
+        print(confusion_matrix(fn_frac, tp_frac, tn_frac, fp_frac, tn_frac + fp_frac, tp_frac + fn_frac))
+        print('throughput: ', tp_frac / (tp_frac + fn_frac))
+
+        metrics_vol = get_bin_measures(true_label, pred_label, sum=False)
+
+        # np.float64 so ZeroDivideErrors -> np.nan
+        true_pos, false_neg, false_pos, true_neg = (np.float64(np.sum(metrics_vol[i])) for i in range(4))
+
+        tot_neg, tot_pos = true_neg + false_pos, true_pos + false_neg
+        dprint(tot_neg, tot_pos, train)
+
+        kind = 'train' if train else 'test'
+        metrics[kind]['True Positive'] = np.append(metrics[kind]['True Positive'], true_pos / tot_pos)
+        metrics[kind]['True Negative'] = np.append(metrics[kind]['True Negative'], true_neg / tot_neg)
+
+        planet_photons = np.concatenate((input_data[tp_list], input_data[fp_list]), axis=0)
+        snr = calc_snr(planet_photons, astro_dict)
+        metrics[kind]['SNR'] = np.append(metrics[kind]['SNR'], snr)
+
+        astro_info['separation'].append(np.sqrt(np.sum(astro_dict['loc']**2)))
+        astro_info['contrast'].append(astro_dict['contrast'])
+        astro_info['PA'].append(np.arctan2(astro_dict['loc'][1],astro_dict['loc'][0]))
+        astro_info['spec'].append(astro_dict['spec'])
+
+    kinds = ['train', 'test'] if config['data']['test_frac'] > 0 else ['train']
+    for kind in kinds:
+
+        # get the number of x values
+        num = len(metrics[kind][plot_metric_types[0]])
+        if kind == 'train':
+            epochs = np.linspace(0, num * config['train']['cache_freq']/num_train, num)
+        if kind == 'test':
+            epochs = np.linspace(0, num * config['train']['cache_freq']/num_test, num)
+
+        for ax, metric_key in zip(axes, plot_metric_types):
+            # for astro in astro_info.keys():
+            seps = np.arange(np.floor(config['data']['lods']), np.ceil(config['data']['lods']))
+            sep_bins = np.digitize(astro_info['separation'], seps)
+            ax.plot(epochs[sep_bins], metrics[kind][metric_key][sep_bins], linestyle='--')
+            # ax.plot(epochs, metrics[kind][metric_key], c=metrics[kind]['color'], label=kind, alpha=0.25)
+            # ax.plot(epochs[:len(running_av(metrics[kind][metric_key], len(epochs)//20))],
+            #         running_av(metrics[kind][metric_key], len(epochs)//20), c=metrics[kind]['color'])
+
+    axes[0].legend()
+
+    plt.show(block=True)
+
 def metric_trends(start=0, end=10):
     """
     Shows metrics as a function of training steps
@@ -200,9 +271,6 @@ def metric_trends(start=0, end=10):
     metrics['test'] = dict(zip(metric_types, values))
     metrics['train']['lines'], metrics['test']['lines'] = [], []
     metrics['train']['color'], metrics['test']['color'] = 'C1', 'C0'
-
-    def running_av(x, N=10):
-        return np.convolve(x, np.ones(N) / N, mode='valid')
 
     for step in range(start, end+1):
         print(step, start, end)
@@ -317,6 +385,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # plot_images()
+    separate_trends()
     metric_trends(end = -1)
     metric_tesseracts(start = -5, end = -1, jump=1)
 
