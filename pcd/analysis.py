@@ -17,7 +17,16 @@ def reduce_image(photons):
 
 def find_loc(astro_dict, derot_image, verbose=False):
     planet_loc = astro_dict['loc'].astype('int') + mp.array_size // 2
-    zoomim = derot_image[planet_loc[0] - 5:planet_loc[0] + 5, planet_loc[1] - 5:planet_loc[1] + 5]
+    # planet_loc[planet_loc<0] = 0
+    xrange = np.array([planet_loc[1] - 5, planet_loc[1]+5])
+    yrange = np.array([planet_loc[0] - 5, planet_loc[0]+5])
+    xrange[xrange < 0] = 0
+    yrange[yrange < 0] = 0
+    zoomim = derot_image[yrange[0]:yrange[1], xrange[0]:xrange[1]]
+    print(np.shape(zoomim), planet_loc, 'here')
+    # if np.min(np.shape(zoomim)) == 0:
+    #     plt.imshow(zoomim)
+    #     plt.show()
     correction = np.array(np.unravel_index(np.argmax(zoomim), zoomim.shape)) - np.array([5, 5])
     planet_loc += correction
 
@@ -113,17 +122,19 @@ def get_tess(photonlist):
     # bins = [mp.array_size[0]] * 4
     max_x = np.abs(photonlist[:,2]).max()
     max_y = np.abs(photonlist[:,3]).max()
-    bins = [np.linspace(photonlist[:, 0].min(), photonlist[:, 0].max(), sp.numframes + 1),
+    min_spatial = np.min([max_x, max_y])  # want to use the same scaling on both axes
+    timesamps = 30 if config['mec']['dithered'] else sp.numframes
+    bins = [np.linspace(photonlist[:, 0].min(), photonlist[:, 0].max(), timesamps + 1),
             np.linspace(photonlist[:, 1].min(), photonlist[:, 1].max(), ap.n_wvl_final + 1),
-            np.linspace(-max_x, max_x, 151),
-            np.linspace(-max_y, max_y, 151)]
+            np.linspace(-min_spatial, min_spatial, 151),
+            np.linspace(-min_spatial, min_spatial, 151)]
 
     tess, _ = np.histogramdd(photonlist, bins=bins)
 
     return tess
 
 def get_angle_list(tess):
-    angle_list = -np.linspace(0, sp.numframes * sp.sample_time * config['data']['rot_rate']/60, tess.shape[0])
+    angle_list = np.linspace(0, sp.numframes * sp.sample_time * config['data']['rot_rate']/60, tess.shape[0])
     return angle_list
 
 def derot_tess(tess):

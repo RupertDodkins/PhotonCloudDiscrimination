@@ -189,7 +189,7 @@ def adjust_companion(planet_photons, star_photons, astro):
 
     num_planet = len(planet_photons)
     for p in range(num_planet):
-        angle = np.deg2rad(planet_photons[p, 0] * config['data']['rot_rate'] + offset)
+        angle = np.deg2rad(planet_photons[p, 0] * config['data']['rot_rate']/60 + offset)
         rot_matrix = [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
         centered_y[p], centered_x[p] = np.dot(rot_matrix, np.array([centered_y[p], centered_x[p]]).T)
         planet_photons[p, 2], planet_photons[p, 3] = centered_y[p] + ystar, centered_x[p] + xstar
